@@ -339,6 +339,13 @@ bool sort_test(size_t elements) {
 	return result;
 }
 
+bool sort_test_trivial() {
+	TEST_ENSURE(sort_test(0), "Cannot sort 0 elements");
+	TEST_ENSURE(sort_test(1), "Cannot sort 1 element");
+	TEST_ENSURE(sort_test(2), "Cannot sort 2 elements");
+	return true;
+}
+
 bool sort_test_small() {
 	return sort_test(20);
 }
@@ -538,6 +545,219 @@ bool virtual_test() {
 	return check_test_vectors();
 }
 
+struct prepare_result {
+	prepare_result()
+		: t(0)
+	{
+	}
+
+	memory_size_type memWanted1;
+	memory_size_type memWanted2;
+	memory_size_type memWanted3;
+
+	memory_size_type memGotten1;
+	memory_size_type memGotten2;
+	memory_size_type memGotten3;
+
+	size_t t;
+	size_t prep1;
+	size_t prep2;
+	size_t prep3;
+	size_t begin1;
+	size_t begin2;
+	size_t begin3;
+};
+
+std::ostream & operator<<(std::ostream & os, const prepare_result & r) {
+	return os
+		<< "memWanted1: " << r.memWanted1 << '\n'
+		<< "memWanted2: " << r.memWanted2 << '\n'
+		<< "memWanted3: " << r.memWanted3 << "\n\n"
+		<< "memGotten1: " << r.memGotten1 << '\n'
+		<< "memGotten2: " << r.memGotten2 << '\n'
+		<< "memGotten3: " << r.memGotten3 << "\n\n"
+		<< "t:          " << r.t << '\n'
+		<< "prep1:      " << r.prep1 << '\n'
+		<< "prep2:      " << r.prep2 << '\n'
+		<< "prep3:      " << r.prep3 << '\n'
+		<< "begin1:     " << r.begin1 << '\n'
+		<< "begin2:     " << r.begin2 << '\n'
+		<< "begin3:     " << r.begin3 << '\n';
+}
+
+template <typename dest_t>
+class prepare_begin_type : public pipe_segment {
+	dest_t dest;
+	prepare_result & r;
+public:
+	typedef void * item_type;
+
+	prepare_begin_type(dest_t dest, prepare_result & r)
+		: dest(dest)
+		, r(r)
+	{
+		add_push_destination(dest);
+	}
+
+	virtual void prepare() /*override*/ {
+		log_debug() << "Prepare 1" << std::endl;
+		r.prep1 = r.t++;
+		set_minimum_memory(r.memWanted1);
+		forward("t", r.t);
+	}
+
+	virtual void begin() /*override*/ {
+		log_debug() << "Begin 1" << std::endl;
+		r.begin1 = r.t++;
+		r.memGotten1 = get_available_memory();
+		forward("t", r.t);
+	}
+
+	virtual void go() /*override*/ {
+		// We don't test go()/push() in this unit test.
+	}
+
+	virtual void set_available_memory(memory_size_type mem) /*override*/ {
+		pipe_segment::set_available_memory(mem);
+		log_debug() << "Begin memory " << mem << std::endl;
+	}
+};
+
+inline pipe_begin<factory_1<prepare_begin_type, prepare_result &> >
+prepare_begin(prepare_result & r) {
+	return factory_1<prepare_begin_type, prepare_result &>(r);
+}
+
+template <typename dest_t>
+class prepare_middle_type : public pipe_segment {
+	dest_t dest;
+	prepare_result & r;
+public:
+	typedef void * item_type;
+
+	prepare_middle_type(dest_t dest, prepare_result & r)
+		: dest(dest)
+		, r(r)
+	{
+		add_push_destination(dest);
+	}
+
+	virtual void prepare() /*override*/ {
+		log_debug() << "Prepare 2" << std::endl;
+		if (!can_fetch("t")) {
+			log_error() << "Couldn't fetch time variable in middle::prepare" << std::endl;
+		} else if (fetch<size_t>("t") != r.t) {
+			log_error() << "Time is wrong" << std::endl;
+		}
+		r.prep2 = r.t++;
+		set_minimum_memory(r.memWanted2);
+		forward("t", r.t);
+	}
+
+	virtual void begin() /*override*/ {
+		log_debug() << "Begin 2" << std::endl;
+		if (!can_fetch("t")) {
+			log_error() << "Couldn't fetch time variable in middle::begin" << std::endl;
+		} else if (fetch<size_t>("t") != r.t) {
+			log_error() << "Time is wrong" << std::endl;
+		}
+		r.begin2 = r.t++;
+		r.memGotten2 = get_available_memory();
+		forward("t", r.t);
+	}
+};
+
+inline pipe_middle<factory_1<prepare_middle_type, prepare_result &> >
+prepare_middle(prepare_result & r) {
+	return factory_1<prepare_middle_type, prepare_result &>(r);
+}
+
+class prepare_end_type : public pipe_segment {
+	prepare_result & r;
+public:
+	typedef void * item_type;
+
+	prepare_end_type(prepare_result & r)
+		: r(r)
+	{
+	}
+
+	virtual void prepare() /*override*/ {
+		log_debug() << "Prepare 3" << std::endl;
+		if (!can_fetch("t")) {
+			log_error() << "Couldn't fetch time variable in end::prepare" << std::endl;
+		} else if (fetch<size_t>("t") != r.t) {
+			log_error() << "Time is wrong" << std::endl;
+		}
+		r.prep3 = r.t++;
+		set_minimum_memory(r.memWanted3);
+	}
+
+	virtual void begin() /*override*/ {
+		log_debug() << "Begin 3" << std::endl;
+		if (!can_fetch("t")) {
+			log_error() << "Couldn't fetch time variable in end::begin" << std::endl;
+		} else if (fetch<size_t>("t") != r.t) {
+			log_error() << "Time is wrong" << std::endl;
+		}
+		r.begin3 = r.t++;
+		r.memGotten3 = get_available_memory();
+	}
+};
+
+inline pipe_end<termfactory_1<prepare_end_type, prepare_result &> >
+prepare_end(prepare_result & r) {
+	return termfactory_1<prepare_end_type, prepare_result &>(r);
+}
+
+bool prepare_test() {
+	prepare_result r;
+	r.memWanted1 = 23;
+	r.memWanted2 = 45;
+	r.memWanted3 = 67;
+
+	pipeline p = prepare_begin(r)
+		| prepare_middle(r)
+		| prepare_end(r);
+	p();
+	log_debug() << r << std::endl;
+	TEST_ENSURE(r.prep1  == 0, "Prep 1 time is wrong");
+	TEST_ENSURE(r.prep2  == 1, "Prep 2 time is wrong");
+	TEST_ENSURE(r.prep3  == 2, "Prep 3 time is wrong");
+	TEST_ENSURE(r.begin1 == 3, "Begin 1 time is wrong");
+	TEST_ENSURE(r.begin2 == 4, "Begin 2 time is wrong");
+	TEST_ENSURE(r.begin3 == 5, "Begin 3 time is wrong");
+	TEST_ENSURE(r.t      == 6, "Time is wrong after execution");
+
+	TEST_ENSURE(r.memGotten1 == r.memWanted1, "Memory assigned to 1 is wrong");
+	TEST_ENSURE(r.memGotten2 == r.memWanted2, "Memory assigned to 2 is wrong");
+	TEST_ENSURE(r.memGotten3 == r.memWanted3, "Memory assigned to 3 is wrong");
+
+	return true;
+}
+
+bool pull_iterator_test() {
+	outputvector.resize(inputvector.size());
+	expectvector = inputvector;
+	pipeline p =
+		pull_input_iterator(inputvector.begin(), inputvector.end())
+		| pull_output_iterator(outputvector.begin());
+	p.plot(log_info());
+	p();
+	return check_test_vectors();
+}
+
+bool push_iterator_test() {
+	outputvector.resize(inputvector.size());
+	expectvector = inputvector;
+	pipeline p =
+		push_input_iterator(inputvector.begin(), inputvector.end())
+		| push_output_iterator(outputvector.begin());
+	p.plot(log_info());
+	p();
+	return check_test_vectors();
+}
+
 template <typename dest_t>
 class multiplicative_inverter_type : public pipe_segment {
 	dest_t dest;
@@ -599,6 +819,7 @@ int main(int argc, char ** argv) {
 	.test(file_stream_alt_push_test, "fsaltpush")
 	.test(merge_test, "merge")
 	.test(reverse_test, "reverse")
+	.test(sort_test_trivial, "sorttrivial")
 	.test(sort_test_small, "sort")
 	.test(sort_test_large, "sortbig")
 	.test(operator_test, "operators")
@@ -608,6 +829,9 @@ int main(int argc, char ** argv) {
 	.test(merger_memory_test, "merger_memory", "n", static_cast<size_t>(10))
 	.test(fetch_forward_test, "fetch_forward")
 	.test(virtual_test, "virtual")
+	.test(prepare_test, "prepare")
+	.test(pull_iterator_test, "pull_iterator")
+	.test(push_iterator_test, "push_iterator")
 	.test(parallel_test, "parallel", "modulo", static_cast<size_t>(20011))
 	.test(parallel_ordered_test, "parallel_ordered", "modulo", static_cast<size_t>(20011))
 	;

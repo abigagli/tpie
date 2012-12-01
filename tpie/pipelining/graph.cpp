@@ -216,6 +216,15 @@ void phase::assign_minimum_memory() const {
 }
 
 void phase::assign_memory(memory_size_type m) const {
+	{
+		dfs_traversal<phase::segment_graph> dfs(*g);
+		dfs.dfs();
+		std::vector<pipe_segment *> order = dfs.toposort();
+		for (size_t i = 0; i < order.size(); ++i) {
+			order[i]->prepare();
+		}
+	}
+
 	if (m < minimum_memory()) {
 		TP_LOG_WARNING_ID("Not enough memory for this phase. We have " << m << " but we require " << minimum_memory() << '.');
 		assign_minimum_memory();
@@ -224,6 +233,10 @@ void phase::assign_memory(memory_size_type m) const {
 	memory_size_type remaining = m;
 	double fraction = memory_fraction();
 	//std::cout << "Remaining " << m << " fraction " << fraction << " segments " << m_segments.size() << std::endl;
+	if (fraction < 1e-9) {
+		assign_minimum_memory();
+		return;
+	}
 	std::vector<char> assigned(m_segments.size());
 	while (true) {
 		bool done = true;
@@ -258,11 +271,15 @@ graph_traits::graph_traits(const segment_map & map)
 {
 	map.assert_authoritative();
 	calc_phases();
+	map.send_successors();
+}
+
+memory_size_type graph_traits::memory_usage(size_t phases) {
+	return phases * (sizeof(auto_ptr<Progress::sub>) + sizeof(Progress::sub));
 }
 
 void graph_traits::go_all(stream_size_type n, Progress::base & pi) {
 	map.assert_authoritative();
-	map.send_successors();
 	Progress::fp fp(&pi);
 	array<auto_ptr<Progress::sub> > subindicators(m_phases.size());
 	for (size_t i = 0; i < m_phases.size(); ++i) {

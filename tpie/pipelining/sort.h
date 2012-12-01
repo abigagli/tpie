@@ -96,6 +96,7 @@ struct sort_pull_output_t : public sort_output_base<T, pred_t> {
 	virtual void begin() /*override*/ {
 		pipe_segment::begin();
 		this->set_steps(this->m_sorter->item_count());
+		this->forward("items", static_cast<stream_size_type>(this->m_sorter->item_count()));
 	}
 
 	inline bool can_pull() const {
@@ -143,6 +144,7 @@ struct sort_output_t : public sort_output_base<typename dest_t::item_type, pred_
 	virtual void begin() /*override*/ {
 		pipe_segment::begin();
 		this->set_steps(this->m_sorter->item_count());
+		this->forward("items", static_cast<stream_size_type>(this->m_sorter->item_count()));
 	}
 
 	virtual void go() /*override*/ {
@@ -413,7 +415,7 @@ struct passive_sorter_factory : public factory_base {
 		calc_t calc(output->get_sorter());
 		output->set_calc_segment(calc);
 		this->init_segment(calc);
-		input_t input(calc, pred_t());
+		input_t input(calc);
 		this->init_segment(input);
 		return input;
 	}
@@ -464,8 +466,9 @@ public:
 	typedef bits::sort_pull_output_t<item_type, pred_t> output_t;
 
 	inline passive_sorter(pred_t pred = pred_t())
-		: m_output(pred)
-		, m_sorter(new sorter_t())
+		: m_sorter(new sorter_t())
+		, pred(pred)
+		, m_output(pred)
 	{
 	}
 

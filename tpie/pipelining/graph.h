@@ -84,6 +84,8 @@ public:
 	std::string get_unique_id() const;
 
 private:
+	/** Graph of nodes in this phase. Initialised in constructor. Populated
+	 * by graph_traits::calc_phases using add and add_successor. */
 	std::auto_ptr<segment_graph> g;
 
 	/** a pointer is a weak reference to something that isn't reference counted. */
@@ -102,6 +104,8 @@ struct graph_traits {
 	typedef std::vector<phase> phases_t;
 	typedef phases_t::iterator phaseit;
 	typedef progress_types<true> Progress;
+
+	static memory_size_type memory_usage(size_t phases);
 
 	graph_traits(const segment_map & map);
 
