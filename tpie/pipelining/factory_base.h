@@ -24,6 +24,13 @@ namespace tpie {
 
 namespace pipelining {
 
+class factory_init_hook {
+public:
+	virtual void init_segment(pipe_segment & r) = 0;
+	virtual ~factory_init_hook() {
+	}
+};
+
 struct factory_base {
 	factory_base() : m_amount(0), m_set(false) {
 	}
@@ -37,6 +44,24 @@ struct factory_base {
 		return m_amount;
 	}
 
+	///////////////////////////////////////////////////////////////////////////
+	/// \brief  Add a pipe_segment initialization hook. When a pipe_segment is
+	/// instantiated in construct(), the given hook will get a chance to do
+	/// some additional initialization.
+	///////////////////////////////////////////////////////////////////////////
+	void hook_initialization(factory_init_hook * hook) {
+		m_hooks.push_back(hook);
+	}
+
+	///////////////////////////////////////////////////////////////////////////
+	/// \brief  Copy the hooks that have been added to this factory to another.
+	///////////////////////////////////////////////////////////////////////////
+	void copy_hooks_to(factory_base & other) const {
+		for (size_t i = 0; i < m_hooks.size(); ++i) {
+			other.m_hooks.push_back(m_hooks[i]);
+		}
+	}
+
 	inline void init_segment(pipe_segment & r) const {
 		if (m_set) r.set_memory_fraction(memory());
 		if (!m_name.empty()) {
@@ -44,6 +69,9 @@ struct factory_base {
 		}
 		if (!m_breadcrumbs.empty()) {
 			r.set_breadcrumb(m_breadcrumbs);
+		}
+		for (size_t i = 0; i < m_hooks.size(); ++i) {
+			m_hooks[i]->init_segment(r);
 		}
 	}
 
@@ -63,6 +91,7 @@ private:
 	std::string m_name;
 	std::string m_breadcrumbs;
 	priority_type m_namePriority;
+	std::vector<factory_init_hook *> m_hooks;
 };
 
 } // namespace pipelining
