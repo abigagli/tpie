@@ -35,17 +35,17 @@ template <> struct is_simple_iterator_enable_if<true> {typedef void type;};
 template <typename T>
 class is_simple_iterator {
 private:
-  template <typename TT> 
-  static char & magic(typename std::vector<typename TT::value_type>::iterator*);
-  template <typename TT> 
-  static char & magic(typename std::vector<typename TT::value_type>::const_iterator*);
-  template <typename TT> 
-  static char & magic(typename std::basic_string<typename TT::value_type>::iterator*);
-  template <typename TT> 
-  static char & magic(typename std::basic_string<typename TT::value_type>::const_iterator*);
-  template <typename TT> 
-  static char & magic(TT *, typename is_simple_iterator_enable_if<TT::is_simple_iterator>::type *_=0);
-  template <typename TT> 
+  template <typename TT>
+  static char magic(typename std::vector<typename TT::value_type>::iterator*);
+  template <typename TT>
+  static char magic(typename std::vector<typename TT::value_type>::const_iterator*);
+  template <typename TT>
+  static char magic(typename std::basic_string<typename TT::value_type>::iterator*);
+  template <typename TT>
+  static char magic(typename std::basic_string<typename TT::value_type>::const_iterator*);
+  template <typename TT>
+  static char magic(TT *, typename is_simple_iterator_enable_if<TT::is_simple_iterator>::type *_=0);
+  template <typename TT>
   static long magic(...);
 public:
   static bool const value=sizeof(magic<T>((T*)0))==sizeof(char);
