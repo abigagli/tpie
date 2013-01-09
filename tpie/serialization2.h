@@ -90,10 +90,8 @@ void unserialize(S & src, foo & v);
 ///////////////////////////////////////////////////////////////////////////////
 template <typename D, typename T>
 void serialize(D & dst, const T & v,
-				  typename boost::enable_if<boost::is_pod<T> >::type *_=0,
-				  typename boost::disable_if<boost::is_pointer<T> >::type *__=0) {
-	tpie::unused(_);
-	tpie::unused(__);
+			   typename boost::enable_if<boost::is_pod<T> >::type * = 0,
+			   typename boost::disable_if<boost::is_pointer<T> >::type * = 0) {
 	dst.write((const char *)&v, sizeof(T));
 }
 
@@ -102,10 +100,8 @@ void serialize(D & dst, const T & v,
 ///////////////////////////////////////////////////////////////////////////////
 template <typename S, typename T>
 void unserialize(S & src, T & v,
-					typename boost::enable_if<boost::is_pod<T> >::type *_=0,
-					typename boost::disable_if<boost::is_pointer<T> >::type *__=0) {
-	tpie::unused(_);
-	tpie::unused(__);
+				 typename boost::enable_if<boost::is_pod<T> >::type * = 0,
+				 typename boost::disable_if<boost::is_pointer<T> >::type * = 0) {
 	src.read((char *)&v, sizeof(T));
 }
 
