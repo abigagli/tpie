@@ -45,6 +45,7 @@ class serialization_stream {
 	memory_size_type m_index;
 	stream_size_type m_nextBlock; // TODO: remove
 	memory_size_type m_nextIndex; // TODO: remove
+	stream_size_type m_size;
 	static const memory_size_type no_index = -1;
 
 	bool m_open;
@@ -65,19 +66,17 @@ class serialization_stream {
 		// TODO: add reverse
 	};
 
-	stream_header_t m_streamHeader; // TODO: remove
-
-	void init_header() {
-		m_streamHeader.magic = stream_header_t::magicConst;
-		m_streamHeader.version = stream_header_t::versionConst;
-		m_streamHeader.blockSize = block_size();
-		m_streamHeader.size = 0;
-		m_streamHeader.cleanClose = 0;
+	void init_header(stream_header_t & header) {
+		header.magic = stream_header_t::magicConst;
+		header.version = stream_header_t::versionConst;
+		header.blockSize = block_size();
+		header.size = m_size;
+		header.cleanClose = 0;
 	}
 
-	void read_header() {
+	void read_header(stream_header_t & header) {
 		m_fileAccessor.seek_i(0);
-		m_fileAccessor.read_i(&m_streamHeader, sizeof(m_streamHeader));
+		m_fileAccessor.read_i(&header, sizeof(header));
 	}
 
 	memory_size_type header_size() {
@@ -86,30 +85,30 @@ class serialization_stream {
 		return (sz + (align-1))/align * align;
 	}
 
-	void write_header(bool cleanClose) {
-		m_streamHeader.cleanClose = cleanClose;
+	void write_header(stream_header_t & header, bool cleanClose) {
+		header.cleanClose = cleanClose;
 
 		tpie::array<char> headerArea(header_size());
 		std::fill(headerArea.begin(), headerArea.end(), '\x42');
-		char * headerData = reinterpret_cast<char *>(&m_streamHeader);
-		std::copy(headerData, sizeof(m_streamHeader) + headerData,
+		char * headerData = reinterpret_cast<char *>(&header);
+		std::copy(headerData, sizeof(header) + headerData,
 				  headerArea.begin());
 
 		m_fileAccessor.seek_i(0);
 		m_fileAccessor.write_i(&headerArea[0], headerArea.size());
 	}
 
-	void verify_header() {
-		if (m_streamHeader.magic != m_streamHeader.magicConst)
+	void verify_header(stream_header_t & header) {
+		if (header.magic != header.magicConst)
 			throw stream_exception("Bad header magic");
-		if (m_streamHeader.version < m_streamHeader.versionConst)
+		if (header.version < header.versionConst)
 			throw stream_exception("Stream version too old");
-		if (m_streamHeader.version > m_streamHeader.versionConst)
+		if (header.version > header.versionConst)
 			throw stream_exception("Stream version too new");
 	}
 
-	void verify_clean_close() {
-		if (m_streamHeader.cleanClose != 1)
+	void verify_clean_close(stream_header_t & header) {
+		if (header.cleanClose != 1)
 			throw stream_exception("Stream was not closed properly");
 	}
 
@@ -118,6 +117,7 @@ public:
 		: m_index(no_index)
 		, m_nextBlock(block_t::none)
 		, m_nextIndex(no_index)
+		, m_size(0)
 		, m_open(false)
 	{
 	}
@@ -135,16 +135,18 @@ public:
 		close();
 
 		m_fileAccessor.set_cache_hint(access_sequential);
+		stream_header_t header;
 		if (m_fileAccessor.try_open_rw(path)) {
-			read_header();
-			verify_header();
+			read_header(header);
+			verify_header(header);
 			if (requireCleanClose)
-				verify_clean_close();
-			write_header(false);
+				verify_clean_close(header);
+			write_header(header, false);
 		} else {
 			m_fileAccessor.open_rw_new(path);
-			init_header();
-			write_header(false);
+			m_size = 0;
+			init_header(header);
+			write_header(header, false);
 		}
 		m_block.size = 0;
 		m_block.number = block_t::none;
@@ -160,7 +162,9 @@ public:
 		if (m_open) {
 			flush_block();
 			update_vars();
-			write_header(true);
+			stream_header_t header;
+			init_header(header);
+			write_header(header, true);
 			m_fileAccessor.close_i();
 		}
 		m_block.data.resize(0);
@@ -169,7 +173,7 @@ public:
 
 private:
 	void update_vars() {
-		m_streamHeader.size = std::max(m_streamHeader.size, offset());
+		m_size = std::max(m_size, offset());
 	}
 
 	char * data() {
@@ -283,7 +287,7 @@ public:
 
 	stream_size_type size() {
 		update_vars();
-		return m_streamHeader.size;
+		return m_size;
 	}
 
 	bool can_read(memory_size_type bytes = 1) { // TODO: remove parameter
