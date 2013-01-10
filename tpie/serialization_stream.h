@@ -108,6 +108,53 @@ public:
 	///////////////////////////////////////////////////////////////////////////
 	bool can_read();
 
+	///////////////////////////////////////////////////////////////////////////
+	/// \brief  Serialize a serializable item and write it to the stream.
+	///
+	/// The code stream.serialize(v) just calls tpie::serialize(stream, v).
+	///////////////////////////////////////////////////////////////////////////
+	template <typename T>
+	void serialize(const T & v) {
+		tpie::serialize(*this, v);
+	}
+
+	///////////////////////////////////////////////////////////////////////////
+	/// \brief  Serialize a sequence of serializable items and write them to
+	/// the stream.
+	///
+	/// The code stream.serialize(a, b) just calls tpie::serialize(stream, a, b).
+	///////////////////////////////////////////////////////////////////////////
+	template <typename IT>
+	void serialize(const IT & a, const IT & b) {
+		tpie::serialize(*this, a, b);
+	}
+
+	///////////////////////////////////////////////////////////////////////////
+	/// \brief  Unserialize an unserializable item from the stream.
+	///
+	/// An item of the given type must exist at the current point in the
+	/// stream.
+	///
+	/// The code stream.unserialize(v) just calls tpie::unserialize(stream, v).
+	///////////////////////////////////////////////////////////////////////////
+	template <typename T>
+	void unserialize(T & v) {
+		tpie::unserialize(*this, v);
+	}
+
+	///////////////////////////////////////////////////////////////////////////
+	/// \brief  Unserialize a sequence of unserializable items from the stream.
+	///
+	/// A sequence of the given item type must exist at the current point in
+	/// the stream.
+	///
+	/// The code stream.unserialize(a, b) just calls tpie::unserialize(stream, a, b).
+	///////////////////////////////////////////////////////////////////////////
+	template <typename IT>
+	void unserialize(IT & a, IT & b) {
+		tpie::unserialize(*this, a, b);
+	}
+
 private:
 	char * data();
 	void write_block();
