@@ -113,8 +113,8 @@ namespace bits {
 ///////////////////////////////////////////////////////////////////////////////
 template <typename D, typename T,
 		  bool is_simple_itr=tpie::is_simple_iterator<T>::value,
-		  bool is_pod=boost::is_pod<typename T::value_type>::value,
-		  bool is_pointer=boost::is_pointer<typename T::value_type>::value>
+		  bool is_pod=boost::is_pod<typename std::iterator_traits<T>::value_type>::value,
+		  bool is_pointer=boost::is_pointer<typename std::iterator_traits<T>::value_type>::value>
 struct array_encode_magic {
     void operator()(D & dst, T start, T end) {
 		for (T i=start; i != end; ++i) tpie::serialize(dst, *i);
@@ -134,8 +134,8 @@ struct array_encode_magic<D, T, true, true, false> {
 ///////////////////////////////////////////////////////////////////////////////
 template <typename D, typename T,
 		  bool is_simple_itr=tpie::is_simple_iterator<T>::value,
-		  bool is_pod=boost::is_pod<typename T::value_type>::value,
-		  bool is_pointer=boost::is_pointer<typename T::value_type>::value>
+		  bool is_pod=boost::is_pod<typename std::iterator_traits<T>::value_type>::value,
+		  bool is_pointer=boost::is_pointer<typename std::iterator_traits<T>::value_type>::value>
 struct array_decode_magic {
     void operator()(D & dst, T start, T end) {
 		for (T i=start; i != end; ++i) tpie::unserialize(dst, *i);
