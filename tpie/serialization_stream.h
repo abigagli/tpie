@@ -255,12 +255,11 @@ public:
 		return m_size;
 	}
 
-	bool can_read(memory_size_type bytes = 1) { // TODO: remove parameter
-		if (m_index <= m_block.size
-			&& (m_index + bytes) <= m_block.size)
+	bool can_read() {
+		if (m_index < m_block.size)
 			return true;
 		else
-			return offset() + bytes <= size();
+			return offset() < size();
 	}
 };
 
