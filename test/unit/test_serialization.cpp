@@ -154,11 +154,6 @@ bool testSer(bool safe) {
 bool safe_test() { return testSer(true); }
 bool unsafe_test() { return testSer(false); }
 
-///////////////////////////////////////////////////////////////////////////////
-/// Test the following serialization stream axioms:
-///
-/// size() is monotonous; initially zero; maintained between opens
-///////////////////////////////////////////////////////////////////////////////
 bool stream_test(bool rw) {
 	bool result = true;
 
