@@ -196,6 +196,10 @@ private:
 		read_block(m_block.number + 1);
 	}
 
+	stream_size_type offset() {
+		return m_index + m_block.number * block_size();
+	}
+
 public:
 	void write(const char * const s, const memory_size_type count) {
 		const char * i = s;
@@ -245,10 +249,6 @@ public:
 			written += readSize;
 			m_index += readSize;
 		}
-	}
-
-	stream_size_type offset() { // TODO: remove
-		return m_index + m_block.number * block_size();
 	}
 
 	stream_size_type size() {
