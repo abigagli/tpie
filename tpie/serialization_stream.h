@@ -27,6 +27,7 @@
 #include <tpie/serialization2.h>
 #include <tpie/file_accessor/file_accessor.h>
 #include <memory>
+#include <tpie/access_type.h>
 
 namespace tpie {
 
@@ -40,6 +41,9 @@ class serialization_stream {
 	stream_size_type m_size;
 
 	bool m_open;
+
+	bool m_canRead;
+	bool m_canWrite;
 
 #pragma pack(push, 1)
 	struct stream_header_t;
@@ -56,7 +60,7 @@ public:
 	serialization_stream();
 	~serialization_stream();
 	static stream_size_type block_size();
-	void open(std::string path, bool requireCleanClose = true);
+	void open(std::string path, access_type accessType = access_read_write, bool requireCleanClose = true);
 	void close();
 
 private:

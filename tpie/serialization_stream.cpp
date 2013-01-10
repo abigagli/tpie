@@ -53,6 +53,8 @@ void serialization_stream::init_header(stream_header_t & header) {
 }
 
 void serialization_stream::read_header(stream_header_t & header) {
+	assert(m_canRead);
+
 	m_fileAccessor.seek_i(0);
 	m_fileAccessor.read_i(&header, sizeof(header));
 }
@@ -64,6 +66,8 @@ memory_size_type serialization_stream::header_size() {
 }
 
 void serialization_stream::write_header(stream_header_t & header, bool cleanClose) {
+	assert(m_canWrite);
+
 	header.cleanClose = cleanClose;
 
 	tpie::array<char> headerArea(header_size());
@@ -107,21 +111,45 @@ serialization_stream::~serialization_stream() {
 }
 
 // TODO: add bit flags for read, write, clean close, reverse
-void serialization_stream::open(std::string path, bool requireCleanClose /*= true*/) {
+void serialization_stream::open(std::string path, access_type accessType /*= access_read_write*/, bool requireCleanClose /*= true*/) {
 	close();
+
+	m_canRead = accessType == access_read || accessType == access_read_write;
+	m_canWrite = accessType == access_write || accessType == access_read_write;
+
+	m_size = 0;
 
 	m_fileAccessor.set_cache_hint(access_sequential);
 	stream_header_t header;
-	if (m_fileAccessor.try_open_rw(path)) {
-		read_header(header);
-		verify_header(header);
-		if (requireCleanClose)
-			verify_clean_close(header);
-		write_header(header, false);
-	} else {
-		m_fileAccessor.open_rw_new(path);
-		m_size = 0;
-		init_header(header);
+	init_header(header);
+	switch (accessType) {
+		case access_read_write:
+			m_canRead = true;
+			m_canWrite = true;
+			if (m_fileAccessor.try_open_rw(path)) {
+				read_header(header);
+				verify_header(header);
+				if (requireCleanClose)
+					verify_clean_close(header);
+			} else {
+				m_fileAccessor.open_rw_new(path);
+			}
+			break;
+		case access_read:
+			m_canRead = true;
+			m_canWrite = false;
+			m_fileAccessor.open_ro(path);
+			read_header(header);
+			verify_header(header);
+			break;
+		case access_write:
+			m_canRead = false;
+			m_canWrite = true;
+			m_fileAccessor.open_wo(path);
+			break;
+	}
+	m_size = header.size;
+	if (m_canWrite) {
 		write_header(header, false);
 	}
 	m_block->data.resize(block_size());
@@ -132,9 +160,11 @@ void serialization_stream::open(std::string path, bool requireCleanClose /*= tru
 void serialization_stream::close() {
 	if (m_open) {
 		flush_block();
-		stream_header_t header;
-		init_header(header);
-		write_header(header, true);
+		if (m_canWrite) {
+			stream_header_t header;
+			init_header(header);
+			write_header(header, true);
+		}
 		m_fileAccessor.close_i();
 	}
 	m_block->data.resize(0);
@@ -146,17 +176,21 @@ char * serialization_stream::data() {
 }
 
 void serialization_stream::write_block() {
+	assert(m_open);
+	assert(m_canWrite);
 	m_fileAccessor.seek_i(header_size() + m_block->offset);
 	m_fileAccessor.write_i(data(), m_block->size);
 }
 
 void serialization_stream::read_block(stream_size_type offset) {
+	assert(m_open);
 	m_block->offset = offset;
 	m_block->size = block_size();
 	if (m_block->size + m_block->offset > size())
 		m_block->size = size() - m_block->offset;
 	m_fileAccessor.seek_i(header_size() + m_block->offset);
 	if (m_block->size > 0) {
+		assert(m_canRead);
 		m_fileAccessor.read_i(data(), m_block->size);
 	}
 	m_index = 0;
@@ -179,6 +213,8 @@ stream_size_type serialization_stream::offset() {
 }
 
 void serialization_stream::write(const char * const s, const memory_size_type count) {
+	assert(m_canWrite);
+
 	const char * i = s;
 	memory_size_type written = 0;
 	while (written != count) {
@@ -200,6 +236,8 @@ void serialization_stream::write(const char * const s, const memory_size_type co
 }
 
 void serialization_stream::read(char * const s, const memory_size_type count) {
+	assert(m_canRead);
+
 	char * i = s;
 	memory_size_type written = 0;
 	while (written != count) {
