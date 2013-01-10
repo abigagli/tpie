@@ -36,7 +36,7 @@ class serialization_stream {
 		static const stream_size_type none = -1;
 
 		memory_size_type size;
-		stream_size_type number;
+		stream_size_type offset;
 		bool dirty;
 		tpie::array<char> data;
 	};
@@ -164,17 +164,17 @@ private:
 		return &m_block.data[0];
 	}
 
-	void write_block(stream_size_type blockNumber) {
-		m_fileAccessor.seek_i(header_size() + block_size() * blockNumber);
+	void write_block() {
+		m_fileAccessor.seek_i(header_size() + m_block.offset);
 		m_fileAccessor.write_i(data(), m_block.size);
 	}
 
-	void read_block(stream_size_type blockNumber) {
-		m_block.number = blockNumber;
+	void read_block(stream_size_type offset) {
+		m_block.offset = offset;
 		m_block.size = block_size();
-		if (m_block.size + m_block.number * block_size() > size())
-			m_block.size = size() - m_block.number * block_size();
-		m_fileAccessor.seek_i(header_size() + block_size() * m_block.number);
+		if (m_block.size + m_block.offset > size())
+			m_block.size = size() - m_block.offset;
+		m_fileAccessor.seek_i(header_size() + m_block.offset);
 		if (m_block.size > 0) {
 			m_fileAccessor.read_i(data(), m_block.size);
 		}
@@ -186,18 +186,18 @@ private:
 	/// \brief Flushes m_block to disk.
 	///////////////////////////////////////////////////////////////////////////
 	void flush_block() {
-		if (m_block.dirty) write_block(m_block.number);
+		if (m_block.dirty) write_block();
 		m_block.dirty = false;
 	}
 
 	void update_block() {
 		flush_block();
 
-		read_block(m_block.number + 1);
+		read_block(m_block.offset + block_size());
 	}
 
 	stream_size_type offset() {
-		return m_index + m_block.number * block_size();
+		return m_index + m_block.offset;
 	}
 
 public:
@@ -218,7 +218,7 @@ public:
 			m_index += writeSize;
 			m_block.dirty = true;
 			m_block.size = std::max(m_block.size, m_index);
-			m_size = std::max(m_size, m_block.number*block_size()+m_index);
+			m_size = std::max(m_size, m_block.offset+m_index);
 		}
 	}
 
