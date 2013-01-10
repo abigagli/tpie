@@ -157,7 +157,6 @@ bool unsafe_test() { return testSer(false); }
 ///////////////////////////////////////////////////////////////////////////////
 /// Test the following serialization stream axioms:
 ///
-/// offset() is monotonous; initially zero
 /// size() is monotonous; initially zero; maintained between opens
 ///////////////////////////////////////////////////////////////////////////////
 bool stream_test() {
@@ -172,13 +171,8 @@ bool stream_test() {
 	serialization_stream ss;
 	temp_file f;
 	ss.open(f.path());
-	stream_size_type offs = 0;
 	stream_size_type sz = 0;
-	if (offs != ss.offset()) {
-		log_error() << "Bad initial offset" << std::endl;
-		result = false;
-	}
-	if (offs != ss.size()) {
+	if (sz != ss.size()) {
 		log_error() << "Bad initial size" << std::endl;
 		result = false;
 	}
@@ -188,11 +182,6 @@ bool stream_test() {
 			result = false;
 		}
 		serialize(ss, &numbers[0], &numbers[i]);
-		if (offs > ss.offset()) {
-			log_error() << "Non-monotonous offset" << std::endl;
-			result = false;
-		}
-		offs = ss.offset();
 		if (sz > ss.size()) {
 			log_error() << "Non-monotonous size" << std::endl;
 			result = false;
@@ -209,7 +198,6 @@ bool stream_test() {
 		log_error() << "Wrong stream size" << std::endl;
 		result = false;
 	}
-	offs = 0;
 	for (memory_size_type i = 0; i < N; ++i) {
 		if (!ss.can_read()) {
 			log_error() << "Expected can_read()" << std::endl;
@@ -230,24 +218,11 @@ bool stream_test() {
 			}
 			numbers[j] = N;
 		}
-		if (offs > ss.offset()) {
-			log_error() << "Non-monotonous offset" << std::endl;
-			result = false;
-		}
-		offs = ss.offset();
 		if (sz2 > ss.size()) {
 			log_error() << "Non-monotonous size" << std::endl;
 			result = false;
 		}
 		sz2 = ss.size();
-	}
-	if (!ss.can_read(sizeof(serializable_dummy::msg))) {
-		log_error() << "Expected can_read(" << sizeof(serializable_dummy::msg) << ")" << std::endl;
-		result = false;
-	}
-	if (ss.can_read(sizeof(serializable_dummy::msg)+1)) {
-		log_error() << "Expected !can_read(" << sizeof(serializable_dummy::msg) << "+1)" << std::endl;
-		result = false;
 	}
 	serializable_dummy d;
 	unserialize(ss, d);
