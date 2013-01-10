@@ -48,7 +48,7 @@ class serialization_stream {
 	///////////////////////////////////////////////////////////////////////////
 	// Stream header type and helper methods.
 	///////////////////////////////////////////////////////////////////////////
-	// TODO pragma pack this
+#pragma pack(push, 1)
 	struct stream_header_t {
 		static const uint64_t magicConst = 0xfa340f49edbada67ll;
 		static const uint64_t versionConst = 1;
@@ -59,6 +59,7 @@ class serialization_stream {
 		uint64_t cleanClose; // TODO: change to bool
 		// TODO: add reverse
 	};
+#pragma pack(pop)
 
 	void init_header(stream_header_t & header) {
 		header.magic = stream_header_t::magicConst;
