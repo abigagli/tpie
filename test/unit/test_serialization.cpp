@@ -159,7 +159,7 @@ bool unsafe_test() { return testSer(false); }
 ///
 /// size() is monotonous; initially zero; maintained between opens
 ///////////////////////////////////////////////////////////////////////////////
-bool stream_test() {
+bool stream_test(bool rw) {
 	bool result = true;
 
 	memory_size_type N = 2000;
@@ -170,7 +170,7 @@ bool stream_test() {
 
 	serialization_stream ss;
 	temp_file f;
-	ss.open(f.path());
+	ss.open(f.path(), rw ? access_read_write : access_write);
 	stream_size_type sz = 0;
 	if (sz != ss.size()) {
 		log_error() << "Bad initial size" << std::endl;
@@ -191,7 +191,7 @@ bool stream_test() {
 	serialize(ss, serializable_dummy());
 	sz = ss.size();
 	ss.close();
-	ss.open(f.path());
+	ss.open(f.path(), rw ? access_read_write : access_read);
 	stream_size_type sz2 = ss.size();
 	log_debug() << "Stream size " << sz << " " << sz2 << std::endl;
 	if (sz != sz2) {
@@ -235,11 +235,20 @@ bool stream_test() {
 	return result;
 }
 
+bool stream_test_rw() {
+	return stream_test(true);
+}
+
+bool stream_test_ro_wo() {
+	return stream_test(false);
+}
+
 int main(int argc, char ** argv) {
 	return tpie::tests(argc, argv)
 		.test(safe_test, "safe")
 		.test(unsafe_test, "unsafe")
 		.test(testSer2, "serialization2")
-		.test(stream_test, "stream")
+		.test(stream_test_rw, "stream")
+		.test(stream_test_ro_wo, "stream_ro_wo")
 		;
 }
