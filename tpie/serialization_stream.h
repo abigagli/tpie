@@ -32,9 +32,37 @@
 namespace tpie {
 
 class serialization_stream {
-	file_accessor::raw_file_accessor m_fileAccessor;
-
 	struct block_t;
+	struct stream_header_t;
+
+public:
+	serialization_stream();
+	~serialization_stream();
+	static stream_size_type block_size();
+	void open(std::string path, access_type accessType = access_read_write, bool requireCleanClose = true);
+	void close();
+
+	void write(const char * const s, const memory_size_type count);
+	void read(char * const s, const memory_size_type count);
+	stream_size_type size();
+	bool can_read();
+
+private:
+	char * data();
+	void write_block();
+	void read_block(stream_size_type offset);
+	void flush_block();
+	void update_block();
+	stream_size_type offset();
+
+	void init_header(stream_header_t & header);
+	void read_header(stream_header_t & header);
+	memory_size_type header_size();
+	void write_header(stream_header_t & header, bool cleanClose);
+	void verify_header(stream_header_t & header);
+	void verify_clean_close(stream_header_t & header);
+
+	file_accessor::raw_file_accessor m_fileAccessor;
 
 	std::auto_ptr<block_t> m_block;
 	memory_size_type m_index;
@@ -45,37 +73,6 @@ class serialization_stream {
 	bool m_canRead;
 	bool m_canWrite;
 
-#pragma pack(push, 1)
-	struct stream_header_t;
-#pragma pack(pop)
-
-	void init_header(stream_header_t & header);
-	void read_header(stream_header_t & header);
-	memory_size_type header_size();
-	void write_header(stream_header_t & header, bool cleanClose);
-	void verify_header(stream_header_t & header);
-	void verify_clean_close(stream_header_t & header);
-
-public:
-	serialization_stream();
-	~serialization_stream();
-	static stream_size_type block_size();
-	void open(std::string path, access_type accessType = access_read_write, bool requireCleanClose = true);
-	void close();
-
-private:
-	char * data();
-	void write_block();
-	void read_block(stream_size_type offset);
-	void flush_block();
-	void update_block();
-	stream_size_type offset();
-
-public:
-	void write(const char * const s, const memory_size_type count);
-	void read(char * const s, const memory_size_type count);
-	stream_size_type size();
-	bool can_read();
 };
 
 }
