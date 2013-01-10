@@ -43,8 +43,8 @@ class serialization_stream {
 
 	block_t m_block;
 	memory_size_type m_index;
-	stream_size_type m_nextBlock;
-	memory_size_type m_nextIndex;
+	stream_size_type m_nextBlock; // TODO: remove
+	memory_size_type m_nextIndex; // TODO: remove
 	static const memory_size_type no_index = -1;
 
 	bool m_open;
@@ -52,18 +52,20 @@ class serialization_stream {
 	///////////////////////////////////////////////////////////////////////////
 	// Stream header type and helper methods.
 	///////////////////////////////////////////////////////////////////////////
+	// TODO pragma pack this
 	struct stream_header_t {
 		static const uint64_t magicConst = 0xfa340f49edbada67ll;
 		static const uint64_t versionConst = 1;
 
 		uint64_t magic;
 		uint64_t version;
-		uint64_t blockSize;
+		uint64_t blockSize; // TODO: remove
 		uint64_t size;
-		uint64_t cleanClose;
+		uint64_t cleanClose; // TODO: change to bool
+		// TODO: add reverse
 	};
 
-	stream_header_t m_streamHeader;
+	stream_header_t m_streamHeader; // TODO: remove
 
 	void init_header() {
 		m_streamHeader.magic = stream_header_t::magicConst;
@@ -128,6 +130,7 @@ public:
 		return 2*1024*1024;
 	}
 
+	// TODO: add bit flags for read, write, clean close, reverse
 	void open(std::string path, bool requireCleanClose = true) {
 		close();
 
@@ -271,7 +274,7 @@ public:
 		}
 	}
 
-	stream_size_type offset() {
+	stream_size_type offset() { // TODO: remove
 		if (m_nextBlock == block_t::none)
 			return m_index + m_block.number * block_size();
 		else
@@ -283,7 +286,7 @@ public:
 		return m_streamHeader.size;
 	}
 
-	bool can_read(memory_size_type bytes = 1) {
+	bool can_read(memory_size_type bytes = 1) { // TODO: remove parameter
 		if (m_index <= m_block.size
 			&& (m_index + bytes) <= m_block.size)
 			return true;
