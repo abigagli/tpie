@@ -176,14 +176,14 @@ bool stream_test(bool rw) {
 			log_error() << "Expected !can_read()" << std::endl;
 			result = false;
 		}
-		serialize(ss, &numbers[0], &numbers[i]);
+		ss.serialize(&numbers[0], &numbers[i]);
 		if (sz > ss.size()) {
 			log_error() << "Non-monotonous size" << std::endl;
 			result = false;
 		}
 		sz = ss.size();
 	}
-	serialize(ss, serializable_dummy());
+	ss.serialize(serializable_dummy());
 	sz = ss.size();
 	ss.close();
 	ss.open(f.path(), rw ? access_read_write : access_read);
@@ -201,7 +201,7 @@ bool stream_test(bool rw) {
 		for (memory_size_type j = 0; j < N; ++j) {
 			numbers[j] = N;
 		}
-		unserialize(ss, &numbers[0], &numbers[i]);
+		ss.unserialize(&numbers[0], &numbers[i]);
 		for (memory_size_type j = 0; j < N; ++j) {
 			if (j < i && numbers[j] != j) {
 				log_error() << "Incorrect deserialization #" << i << " in position " << j << std::endl;
@@ -220,7 +220,7 @@ bool stream_test(bool rw) {
 		sz2 = ss.size();
 	}
 	serializable_dummy d;
-	unserialize(ss, d);
+	ss.unserialize(d);
 	if (ss.can_read()) {
 		log_error() << "Expected !can_read()" << std::endl;
 		result = false;
