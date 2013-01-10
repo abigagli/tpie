@@ -1,6 +1,6 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; c-file-style: "stroustrup"; -*-
 // vi:set ts=4 sts=4 sw=4 noet :
-// Copyright 2008, The TPIE development team
+// Copyright 2013, The TPIE development team
 // 
 // This file is part of TPIE.
 // 
@@ -20,6 +20,7 @@
 #include "common.h"
 #include <tpie/serialization.h>
 #include <tpie/serialization2.h>
+#include <tpie/serialization_stream.h>
 #include <map>
 #include <boost/random/linear_congruential.hpp>
 #include <boost/unordered_map.hpp>
@@ -153,9 +154,117 @@ bool testSer(bool safe) {
 bool safe_test() { return testSer(true); }
 bool unsafe_test() { return testSer(false); }
 
+///////////////////////////////////////////////////////////////////////////////
+/// Test the following serialization stream axioms:
+///
+/// offset() is monotonous; initially zero
+/// size() is monotonous; initially zero; maintained between opens
+///////////////////////////////////////////////////////////////////////////////
+bool stream_test() {
+	bool result = true;
+
+	memory_size_type N = 2000;
+	array<memory_size_type> numbers(N);
+	for (memory_size_type i = 0; i < N; ++i) {
+		numbers[i] = i;
+	}
+
+	serialization_stream ss;
+	temp_file f;
+	ss.open(f.path());
+	stream_size_type offs = 0;
+	stream_size_type sz = 0;
+	if (offs != ss.offset()) {
+		log_error() << "Bad initial offset" << std::endl;
+		result = false;
+	}
+	if (offs != ss.size()) {
+		log_error() << "Bad initial size" << std::endl;
+		result = false;
+	}
+	for (memory_size_type i = 0; i < N; ++i) {
+		if (ss.can_read()) {
+			log_error() << "Expected !can_read()" << std::endl;
+			result = false;
+		}
+		serialize(ss, &numbers[0], &numbers[i]);
+		if (offs > ss.offset()) {
+			log_error() << "Non-monotonous offset" << std::endl;
+			result = false;
+		}
+		offs = ss.offset();
+		if (sz > ss.size()) {
+			log_error() << "Non-monotonous size" << std::endl;
+			result = false;
+		}
+		sz = ss.size();
+	}
+	serialize(ss, serializable_dummy());
+	sz = ss.size();
+	ss.close();
+	ss.open(f.path());
+	stream_size_type sz2 = ss.size();
+	log_debug() << "Stream size " << sz << " " << sz2 << std::endl;
+	if (sz != sz2) {
+		log_error() << "Wrong stream size" << std::endl;
+		result = false;
+	}
+	offs = 0;
+	for (memory_size_type i = 0; i < N; ++i) {
+		if (!ss.can_read()) {
+			log_error() << "Expected can_read()" << std::endl;
+			result = false;
+		}
+		for (memory_size_type j = 0; j < N; ++j) {
+			numbers[j] = N;
+		}
+		unserialize(ss, &numbers[0], &numbers[i]);
+		for (memory_size_type j = 0; j < N; ++j) {
+			if (j < i && numbers[j] != j) {
+				log_error() << "Incorrect deserialization #" << i << " in position " << j << std::endl;
+				result = false;
+			}
+			if (j >= i && numbers[j] != N) {
+				log_error() << "Deserialization #" << i << " changed an array index " << j << " out of bounds" << std::endl;
+				result = false;
+			}
+			numbers[j] = N;
+		}
+		if (offs > ss.offset()) {
+			log_error() << "Non-monotonous offset" << std::endl;
+			result = false;
+		}
+		offs = ss.offset();
+		if (sz2 > ss.size()) {
+			log_error() << "Non-monotonous size" << std::endl;
+			result = false;
+		}
+		sz2 = ss.size();
+	}
+	if (!ss.can_read(sizeof(serializable_dummy::msg))) {
+		log_error() << "Expected can_read(" << sizeof(serializable_dummy::msg) << ")" << std::endl;
+		result = false;
+	}
+	if (ss.can_read(sizeof(serializable_dummy::msg)+1)) {
+		log_error() << "Expected !can_read(" << sizeof(serializable_dummy::msg) << "+1)" << std::endl;
+		result = false;
+	}
+	serializable_dummy d;
+	unserialize(ss, d);
+	if (ss.can_read()) {
+		log_error() << "Expected !can_read()" << std::endl;
+		result = false;
+	}
+	ss.close();
+
+	return result;
+}
+
 int main(int argc, char ** argv) {
 	return tpie::tests(argc, argv)
 		.test(safe_test, "safe")
 		.test(unsafe_test, "unsafe")
-		.test(testSer2, "serialization2");
+		.test(testSer2, "serialization2")
+		.test(stream_test, "stream")
+		;
 }
