@@ -56,7 +56,10 @@ class serialization_stream {
 		uint64_t magic;
 		uint64_t version;
 		uint64_t size;
-		uint64_t cleanClose; // TODO: change to bool
+		// bool has funny semantics with regards to equality. we want to reject
+		// invalid bool values (>1), but that is not easy to express with a C++
+		// bool variable.
+		char cleanClose;
 		// TODO: add reverse
 	};
 #pragma pack(pop)
