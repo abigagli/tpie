@@ -33,8 +33,6 @@ class serialization_stream {
 	file_accessor::raw_file_accessor m_fileAccessor;
 
 	struct block_t {
-		static const stream_size_type none = -1;
-
 		memory_size_type size;
 		stream_size_type offset;
 		bool dirty;
@@ -44,7 +42,6 @@ class serialization_stream {
 	block_t m_block;
 	memory_size_type m_index;
 	stream_size_type m_size;
-	static const memory_size_type no_index = -1;
 
 	bool m_open;
 
