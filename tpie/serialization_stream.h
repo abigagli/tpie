@@ -43,8 +43,6 @@ class serialization_stream {
 
 	block_t m_block;
 	memory_size_type m_index;
-	stream_size_type m_nextBlock; // TODO: remove
-	memory_size_type m_nextIndex; // TODO: remove
 	stream_size_type m_size;
 	static const memory_size_type no_index = -1;
 
@@ -112,9 +110,7 @@ class serialization_stream {
 
 public:
 	serialization_stream()
-		: m_index(no_index)
-		, m_nextBlock(block_t::none)
-		, m_nextIndex(no_index)
+		: m_index(0)
 		, m_size(0)
 		, m_open(false)
 	{
@@ -146,20 +142,14 @@ public:
 			init_header(header);
 			write_header(header, false);
 		}
-		m_block.size = 0;
-		m_block.number = block_t::none;
-		m_block.dirty = false;
 		m_block.data.resize(block_size());
-		m_index = no_index;
-		m_nextIndex = 0;
-		m_nextBlock = 0;
 		m_open = true;
+		read_block(0);
 	}
 
 	void close() {
 		if (m_open) {
 			flush_block();
-			update_vars();
 			stream_header_t header;
 			init_header(header);
 			write_header(header, true);
@@ -170,10 +160,6 @@ public:
 	}
 
 private:
-	void update_vars() {
-		m_size = std::max(m_size, offset());
-	}
-
 	char * data() {
 		return &m_block.data[0];
 	}
@@ -192,6 +178,8 @@ private:
 		if (m_block.size > 0) {
 			m_fileAccessor.read_i(data(), m_block.size);
 		}
+		m_index = 0;
+		m_block.dirty = false;
 	}
 
 	///////////////////////////////////////////////////////////////////////////
@@ -202,28 +190,10 @@ private:
 		m_block.dirty = false;
 	}
 
-	///////////////////////////////////////////////////////////////////////////
-	/// \brief Fetches block indicated by m_nextBlock.
-	///
-	/// Clears the dirty bit and updates m_nextBlock, m_nextIndex.
-	///////////////////////////////////////////////////////////////////////////
-	void fetch_next_block() {
-		read_block(m_nextBlock);
-		m_index = m_nextIndex;
-		m_nextBlock = block_t::none;
-		m_nextIndex = no_index;
-		m_block.dirty = false;
-	}
-
 	void update_block() {
-		if (m_nextBlock == block_t::none) {
-			m_nextBlock = m_block.number + 1;
-			m_nextIndex = 0;
-		}
-
 		flush_block();
 
-		fetch_next_block();
+		read_block(m_block.number + 1);
 	}
 
 public:
@@ -244,6 +214,7 @@ public:
 			m_index += writeSize;
 			m_block.dirty = true;
 			m_block.size = std::max(m_block.size, m_index);
+			m_size = std::max(m_size, m_block.number*block_size()+m_index);
 		}
 	}
 
@@ -277,14 +248,10 @@ public:
 	}
 
 	stream_size_type offset() { // TODO: remove
-		if (m_nextBlock == block_t::none)
-			return m_index + m_block.number * block_size();
-		else
-			return m_nextIndex + m_nextBlock * block_size();
+		return m_index + m_block.number * block_size();
 	}
 
 	stream_size_type size() {
-		update_vars();
 		return m_size;
 	}
 
