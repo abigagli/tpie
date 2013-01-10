@@ -59,6 +59,7 @@ set (HEADERS
 		queue.h
 		serialization.h
 		serialization2.h
+		serialization_stream.h
 		sort.h
 		sort_deprecated.h
 		sort_manager.h
