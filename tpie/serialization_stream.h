@@ -60,7 +60,6 @@ class serialization_stream {
 
 		uint64_t magic;
 		uint64_t version;
-		uint64_t blockSize; // TODO: remove
 		uint64_t size;
 		uint64_t cleanClose; // TODO: change to bool
 		// TODO: add reverse
@@ -69,7 +68,6 @@ class serialization_stream {
 	void init_header(stream_header_t & header) {
 		header.magic = stream_header_t::magicConst;
 		header.version = stream_header_t::versionConst;
-		header.blockSize = block_size();
 		header.size = m_size;
 		header.cleanClose = 0;
 	}
