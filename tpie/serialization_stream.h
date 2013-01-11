@@ -111,22 +111,25 @@ public:
 	///////////////////////////////////////////////////////////////////////////
 	/// \brief  Serialize a serializable item and write it to the stream.
 	///
-	/// The code stream.serialize(v) just calls tpie::serialize(stream, v).
+	/// The code stream.serialize(v) just calls serialize(stream, v) via ADL.
 	///////////////////////////////////////////////////////////////////////////
 	template <typename T>
 	void serialize(const T & v) {
-		tpie::serialize(*this, v);
+		using tpie::serialize;
+		serialize(*this, v);
 	}
 
 	///////////////////////////////////////////////////////////////////////////
 	/// \brief  Serialize a sequence of serializable items and write them to
 	/// the stream.
 	///
-	/// The code stream.serialize(a, b) just calls tpie::serialize(stream, a, b).
+	/// The code stream.serialize(a, b) just calls serialize(stream, a, b) via
+	/// ADL.
 	///////////////////////////////////////////////////////////////////////////
 	template <typename IT>
-	void serialize(const IT & a, const IT & b) {
-		tpie::serialize(*this, a, b);
+	void serialize(IT a, IT b) {
+		using tpie::serialize;
+		serialize(*this, a, b);
 	}
 
 	///////////////////////////////////////////////////////////////////////////
@@ -135,11 +138,13 @@ public:
 	/// An item of the given type must exist at the current point in the
 	/// stream.
 	///
-	/// The code stream.unserialize(v) just calls tpie::unserialize(stream, v).
+	/// The code stream.unserialize(v) just calls unserialize(stream, v) via
+	/// ADL.
 	///////////////////////////////////////////////////////////////////////////
 	template <typename T>
 	void unserialize(T & v) {
-		tpie::unserialize(*this, v);
+		using tpie::unserialize;
+		unserialize(*this, v);
 	}
 
 	///////////////////////////////////////////////////////////////////////////
@@ -148,11 +153,13 @@ public:
 	/// A sequence of the given item type must exist at the current point in
 	/// the stream.
 	///
-	/// The code stream.unserialize(a, b) just calls tpie::unserialize(stream, a, b).
+	/// The code stream.unserialize(a, b) just calls unserialize(stream, a, b)
+	/// via ADL.
 	///////////////////////////////////////////////////////////////////////////
 	template <typename IT>
-	void unserialize(IT & a, IT & b) {
-		tpie::unserialize(*this, a, b);
+	void unserialize(IT a, IT b) {
+		using tpie::unserialize;
+		unserialize(*this, a, b);
 	}
 
 private:

@@ -53,23 +53,19 @@ struct serializable_dummy {
 
 const char serializable_dummy::msg[] = "Hello, yes, this is dog!";
 
-namespace tpie {
+template <typename D>
+void serialize(D & dst, const serializable_dummy &) {
+	dst.write(serializable_dummy::msg, sizeof(serializable_dummy::msg));
+}
 
-	template <typename D>
-	void serialize(D & dst, const serializable_dummy &) {
-		dst.write(serializable_dummy::msg, sizeof(serializable_dummy::msg));
+template <typename S>
+void unserialize(S & src, const serializable_dummy &) {
+	std::string s(sizeof(serializable_dummy::msg), '\0');
+	src.read(&s[0], s.size());
+	if (!std::equal(s.begin(), s.end(), serializable_dummy::msg)) {
+		throw tpie::exception("Did not serialize the dummy");
 	}
-
-	template <typename S>
-	void unserialize(S & src, const serializable_dummy &) {
-		std::string s(sizeof(serializable_dummy::msg), '\0');
-		src.read(&s[0], s.size());
-		if (!std::equal(s.begin(), s.end(), serializable_dummy::msg)) {
-			throw tpie::exception("Did not serialize the dummy");
-		}
-	}
-
-} // namespace tpie
+}
 
 bool testSer2() {
 	std::stringstream ss;
