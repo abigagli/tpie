@@ -105,6 +105,37 @@ bool serialization_header::get_clean_close() {
 // }}}
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace tpie
+
+namespace {
+	class open_guard {
+		bool & open_flag;
+		tpie::file_accessor::raw_file_accessor & fa;
+		bool committed;
+	public:
+		open_guard(bool & open_flag, tpie::file_accessor::raw_file_accessor & fa)
+			: open_flag(open_flag)
+			, fa(fa)
+			, committed(false)
+		{
+			open_flag = true;
+		}
+
+		void commit() {
+			committed = true;
+		}
+
+		~open_guard() {
+			if (!committed) {
+				open_flag = false;
+				fa.close_i();
+			}
+		}
+	};
+} // unnamed namespace
+
+namespace tpie {
+
 serialization_writer_base::serialization_writer_base()
 	: m_blocksWritten(0)
 	, m_size(0)
@@ -116,12 +147,13 @@ void serialization_writer_base::open(std::string path, bool reverse) {
 	close();
 	m_fileAccessor.set_cache_hint(access_sequential);
 	m_fileAccessor.open_wo(path);
+	open_guard guard(m_open, m_fileAccessor);
 	m_blocksWritten = 0;
 	m_size = 0;
-	m_open = true;
 
 	serialization_header header(m_fileAccessor);
 	header.write(false);
+	guard.commit();
 }
 
 void serialization_writer_base::write_block(const char * const s, const memory_size_type n) {
@@ -172,15 +204,14 @@ void serialization_reader_base::open(std::string path, bool reverse) {
 	close();
 	m_fileAccessor.set_cache_hint(reverse ? access_normal : access_sequential);
 	m_fileAccessor.open_ro(path);
-	m_open = true;
+	open_guard guard(m_open, m_fileAccessor);
 	m_block.resize(block_size());
 
 	serialization_header header(m_fileAccessor);
 	header.read();
 	header.verify();
 	m_size = header.get_size();
-	// TODO: use raii to ensure we set m_open to false and don't leak fds
-	// when verification fails.
+	guard.commit();
 }
 
 void serialization_reader_base::read_block(const stream_size_type blk) {
