@@ -136,6 +136,8 @@ namespace {
 
 namespace tpie {
 
+namespace bits {
+
 serialization_writer_base::serialization_writer_base()
 	: m_blocksWritten(0)
 	, m_size(0)
@@ -174,6 +176,8 @@ void serialization_writer_base::close() {
 	m_open = false;
 }
 
+} // namespace bits
+
 void serialization_writer::write_block() {
 	p_t::write_block(m_block.get(), m_index);
 	m_index = 0;
@@ -191,6 +195,8 @@ void serialization_writer::close() {
 	m_index = 0;
 	p_t::close();
 }
+
+namespace bits {
 
 serialization_reader_base::serialization_reader_base()
 	: m_open(false)
@@ -231,6 +237,8 @@ void serialization_reader_base::close() {
 	m_open = false;
 	m_block.resize(0);
 }
+
+} // namespace bits
 
 void serialization_reader::read_from(stream_size_type offset) {
 	read_block(offset);

@@ -67,6 +67,8 @@ private:
 	file_accessor::raw_file_accessor & m_fileAccessor;
 };
 
+namespace bits {
+
 class serialization_writer_base {
 public:
 	static stream_size_type block_size() {
@@ -97,9 +99,11 @@ protected:
 	void close();
 };
 
-class serialization_writer : public serialization_writer_base {
+} // namespace bits
+
+class serialization_writer : public bits::serialization_writer_base {
 private:
-	typedef serialization_writer_base p_t;
+	typedef bits::serialization_writer_base p_t;
 
 	tpie::array<char> m_block;
 	memory_size_type m_index;
@@ -164,6 +168,8 @@ public:
 		serialize(s, a, b);
 	}
 };
+
+namespace bits {
 
 class serialization_reader_base {
 public:
@@ -254,8 +260,10 @@ public:
 	}
 };
 
-class serialization_reader : public serialization_reader_base {
-	typedef serialization_reader_base p_t;
+} // namespace bits
+
+class serialization_reader : public bits::serialization_reader_base {
+	typedef bits::serialization_reader_base p_t;
 	stream_size_type m_blockNumber;
 
 	void read_from(stream_size_type offset);
