@@ -59,7 +59,7 @@ void serialize(D & dst, const serializable_dummy &) {
 }
 
 template <typename S>
-void unserialize(S & src, const serializable_dummy &) {
+void unserialize(S & src, serializable_dummy &) {
 	std::string s(sizeof(serializable_dummy::msg), '\0');
 	src.read(&s[0], s.size());
 	if (!std::equal(s.begin(), s.end(), serializable_dummy::msg)) {
@@ -150,7 +150,7 @@ bool testSer(bool safe) {
 bool safe_test() { return testSer(true); }
 bool unsafe_test() { return testSer(false); }
 
-bool stream_test(bool rw) {
+bool stream_test() {
 	bool result = true;
 
 	memory_size_type N = 2000;
@@ -159,36 +159,19 @@ bool stream_test(bool rw) {
 		numbers[i] = i;
 	}
 
-	serialization_stream ss;
 	temp_file f;
-	ss.open(f.path(), rw ? access_read_write : access_write);
-	stream_size_type sz = 0;
-	if (sz != ss.size()) {
-		log_error() << "Bad initial size" << std::endl;
-		result = false;
-	}
+	{
+	serialization_writer ss;
+	ss.open(f.path());
 	for (memory_size_type i = 0; i < N; ++i) {
-		if (ss.can_read()) {
-			log_error() << "Expected !can_read()" << std::endl;
-			result = false;
-		}
 		ss.serialize(&numbers[0], &numbers[i]);
-		if (sz > ss.size()) {
-			log_error() << "Non-monotonous size" << std::endl;
-			result = false;
-		}
-		sz = ss.size();
 	}
 	ss.serialize(serializable_dummy());
-	sz = ss.size();
 	ss.close();
-	ss.open(f.path(), rw ? access_read_write : access_read);
-	stream_size_type sz2 = ss.size();
-	log_debug() << "Stream size " << sz << " " << sz2 << std::endl;
-	if (sz != sz2) {
-		log_error() << "Wrong stream size" << std::endl;
-		result = false;
 	}
+	{
+	serialization_reader ss;
+	ss.open(f.path());
 	for (memory_size_type i = 0; i < N; ++i) {
 		if (!ss.can_read()) {
 			log_error() << "Expected can_read()" << std::endl;
@@ -209,11 +192,10 @@ bool stream_test(bool rw) {
 			}
 			numbers[j] = N;
 		}
-		if (sz2 > ss.size()) {
-			log_error() << "Non-monotonous size" << std::endl;
-			result = false;
-		}
-		sz2 = ss.size();
+	}
+	if (!ss.can_read()) {
+		log_error() << "Expected can_read()" << std::endl;
+		result = false;
 	}
 	serializable_dummy d;
 	ss.unserialize(d);
@@ -222,16 +204,9 @@ bool stream_test(bool rw) {
 		result = false;
 	}
 	ss.close();
+	}
 
 	return result;
-}
-
-bool stream_test_rw() {
-	return stream_test(true);
-}
-
-bool stream_test_ro_wo() {
-	return stream_test(false);
 }
 
 int main(int argc, char ** argv) {
@@ -239,7 +214,6 @@ int main(int argc, char ** argv) {
 		.test(safe_test, "safe")
 		.test(unsafe_test, "unsafe")
 		.test(testSer2, "serialization2")
-		.test(stream_test_rw, "stream")
-		.test(stream_test_ro_wo, "stream_ro_wo")
+		.test(stream_test, "stream")
 		;
 }
