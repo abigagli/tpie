@@ -56,6 +56,10 @@ public:
 
 	bool get_clean_close();
 
+	bool get_reverse();
+
+	void set_reverse(bool reverse);
+
 private:
 #pragma pack(push, 1)
 	struct stream_header_t;
@@ -96,7 +100,7 @@ protected:
 	///////////////////////////////////////////////////////////////////////////
 	void write_block(const char * const s, const memory_size_type n);
 
-	void close();
+	void close(bool reverse);
 };
 
 } // namespace bits
@@ -131,6 +135,87 @@ private:
 				i += writeSize;
 				written += writeSize;
 				wr.m_index += writeSize;
+			}
+		}
+	};
+
+	friend class serializer;
+
+public:
+	void open(std::string path);
+
+	void close();
+
+	///////////////////////////////////////////////////////////////////////////
+	/// \brief  Serialize a serializable item and write it to the stream.
+	///
+	/// The code stream.serialize(v) just calls serialize(stream, v) via ADL.
+	///////////////////////////////////////////////////////////////////////////
+	template <typename T>
+	void serialize(const T & v) {
+		using tpie::serialize;
+		serializer s(*this);
+		serialize(s, v);
+	}
+
+	///////////////////////////////////////////////////////////////////////////
+	/// \brief  Serialize a sequence of serializable items and write them to
+	/// the stream.
+	///
+	/// The code stream.serialize(a, b) just calls serialize(stream, a, b) via
+	/// ADL.
+	///////////////////////////////////////////////////////////////////////////
+	template <typename IT>
+	void serialize(IT a, IT b) {
+		using tpie::serialize;
+		serializer s(*this);
+		serialize(s, a, b);
+	}
+};
+
+class serialization_reverse_writer : public bits::serialization_writer_base {
+	typedef bits::serialization_writer_base p_t;
+
+	tpie::array<char> m_block;
+	memory_size_type m_index;
+
+	void write_block();
+
+	class serializer {
+		serialization_reverse_writer & wr;
+		std::vector<char> data;
+
+	public:
+		serializer(serialization_reverse_writer & wr) : wr(wr) {}
+
+		void write(const char * const s, const memory_size_type n) {
+			memory_size_type offs = data.size();
+			data.resize(data.size() + n);
+			std::copy(s, s + n, &data[offs]);
+		}
+
+		~serializer() {
+			const memory_size_type n = data.size();
+			const char * const s = &data[0];
+			if (wr.m_index + n <= wr.block_size()) {
+				std::reverse_copy(s, s + n, &wr.m_block[wr.m_index]);
+				wr.m_index += n;
+			} else {
+				const char * i = s + n;
+				memory_size_type written = 0;
+				while (written != n) {
+					if (wr.m_index >= wr.block_size()) wr.write_block();
+
+					memory_size_type remaining = n - written;
+					memory_size_type blockRemaining = wr.block_size() - wr.m_index;
+
+					memory_size_type writeSize = std::min(remaining, blockRemaining);
+
+					std::reverse_copy(i - writeSize, i, &wr.m_block[wr.m_index]);
+					i -= writeSize;
+					written += writeSize;
+					wr.m_index += writeSize;
+				}
 			}
 		}
 	};
@@ -216,7 +301,7 @@ public:
 			}
 
 			memory_size_type remaining = n - written;
-			memory_size_type blockRemaining = block_size() - m_index;
+			memory_size_type blockRemaining = m_blockSize - m_index;
 
 			memory_size_type readSize = std::min(remaining, blockRemaining);
 
@@ -266,8 +351,6 @@ class serialization_reader : public bits::serialization_reader_base {
 	typedef bits::serialization_reader_base p_t;
 	stream_size_type m_blockNumber;
 
-	void read_from(stream_size_type offset);
-
 protected:
 	virtual void next_block() /*override*/;
 
@@ -279,6 +362,24 @@ public:
 	bool can_read() {
 		if (m_index < m_blockSize) return true;
 		return m_blockNumber * block_size() + m_index < m_size;
+	}
+};
+
+class serialization_reverse_reader : public bits::serialization_reader_base {
+	typedef bits::serialization_reader_base p_t;
+	stream_size_type m_blockNumber;
+
+protected:
+	virtual void next_block() /*override*/;
+
+public:
+	serialization_reverse_reader();
+
+	void open(std::string path);
+
+	bool can_read() {
+		if (m_index < m_blockSize) return true;
+		return m_blockNumber > 0;
 	}
 };
 
