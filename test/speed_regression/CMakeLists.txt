@@ -25,3 +25,7 @@ set_target_properties(array_speed_test PROPERTIES FOLDER tpie/test)
 add_executable(file_stream_speed_test file_stream.cpp ${SPEED_DEPS})
 target_link_libraries(file_stream_speed_test tpie)
 set_target_properties(file_stream_speed_test PROPERTIES FOLDER tpie/test)
+
+add_executable(serialization_speed serialization.cpp ${SPEED_DEPS})
+target_link_libraries(serialization_speed tpie)
+set_target_properties(serialization_speed PROPERTIES FOLDER tpie/test)
