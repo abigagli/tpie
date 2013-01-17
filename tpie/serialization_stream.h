@@ -139,23 +139,25 @@ class serialization_reverse_writer : public bits::serialization_writer_base {
 
 	tpie::array<char> m_block;
 	memory_size_type m_index;
+	std::vector<char> m_serializationBuffer;
 
 	void write_block();
 
 	class serializer {
 		serialization_reverse_writer & wr;
-		std::vector<char> data;
 
 	public:
 		serializer(serialization_reverse_writer & wr) : wr(wr) {}
 
 		void write(const char * const s, const memory_size_type n) {
+			std::vector<char> & data = wr.m_serializationBuffer;
 			memory_size_type offs = data.size();
 			data.resize(data.size() + n);
 			std::copy(s, s + n, &data[offs]);
 		}
 
 		~serializer() {
+			std::vector<char> & data = wr.m_serializationBuffer;
 			const memory_size_type n = data.size();
 			const char * const s = &data[0];
 			if (wr.m_index + n <= wr.block_size()) {
@@ -178,6 +180,7 @@ class serialization_reverse_writer : public bits::serialization_writer_base {
 					wr.m_index += writeSize;
 				}
 			}
+			data.resize(0);
 		}
 	};
 
