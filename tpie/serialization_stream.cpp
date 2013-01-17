@@ -224,6 +224,8 @@ void serialization_writer::close() {
 }
 
 void serialization_reverse_writer::write_block() {
+	// See note about m_index and its semantics.
+	std::reverse(m_block.get(), m_block.get() + block_size());
 	p_t::write_block(m_block.get(), m_index);
 	m_index = 0;
 }

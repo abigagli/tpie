@@ -138,6 +138,11 @@ class serialization_reverse_writer : public bits::serialization_writer_base {
 	typedef bits::serialization_writer_base p_t;
 
 	tpie::array<char> m_block;
+	/** Special m_index semantics:
+	 * In m_block, the indices [block_size() - m_index, block_size())
+	 * contain items that should be reversed before writing out.
+	 * After std::reversing all of m_block, the index range to write out becomes
+	 * [0, m_index). */
 	memory_size_type m_index;
 	std::vector<char> m_serializationBuffer;
 
@@ -161,7 +166,7 @@ class serialization_reverse_writer : public bits::serialization_writer_base {
 			const memory_size_type n = data.size();
 			const char * const s = &data[0];
 			if (wr.m_index + n <= wr.block_size()) {
-				std::reverse_copy(s, s + n, &wr.m_block[wr.m_index]);
+				std::copy(s, s + n, &wr.m_block[block_size() - wr.m_index - n]);
 				wr.m_index += n;
 			} else {
 				const char * i = s + n;
@@ -174,7 +179,7 @@ class serialization_reverse_writer : public bits::serialization_writer_base {
 
 					memory_size_type writeSize = std::min(remaining, blockRemaining);
 
-					std::reverse_copy(i - writeSize, i, &wr.m_block[wr.m_index]);
+					std::copy(i - writeSize, i, &wr.m_block[block_size() - wr.m_index - n]);
 					i -= writeSize;
 					written += writeSize;
 					wr.m_index += writeSize;
