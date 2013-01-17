@@ -26,17 +26,17 @@ int main() {
 	tpie::tpie_init(tpie::ALL & ~tpie::JOB_MANAGER);
 	const tpie::memory_size_type memory = 50*1024;
 	const tpie::memory_size_type lines = 1000;
-	tpie::get_memory_manager().set_limit(2*memory + lines * sizeof(char *) + 2528);
+	tpie::get_memory_manager().set_limit(1024*1024*1024);
 	{
-	tpie::serialization_sort<std::string, std::less<std::string> > sorter(memory, lines);
+	tpie::serialization_sort<std::string, std::less<std::string> > sorter(memory);
 	std::string line;
+	sorter.begin();
 	while (std::getline(std::cin, line)) {
-		sorter.serialize(line);
+		sorter.push(line);
 	}
-	sorter.sort();
-	while (sorter.can_read()) {
-		sorter.unserialize(line);
-		std::cout << line << std::endl;
+	sorter.end();
+	while (sorter.can_pull()) {
+		std::cout << sorter.pull() << '\n';
 	}
 	}
 	tpie::tpie_finish(tpie::ALL & ~tpie::JOB_MANAGER);
