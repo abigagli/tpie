@@ -32,12 +32,50 @@
 
 namespace tpie {
 
+template <typename pred_t>
+class serialization_predicate_wrapper {
+public:
+	typedef bool result_type;
+	typedef typename pred_t::first_argument_type first_argument_type;
+	typedef typename pred_t::second_argument_type second_argument_type;
+
+private:
+	pred_t m_pred;
+
+	struct unserializer {
+		const char * p;
+		unserializer(const char * p) : p(p) {}
+		void read(char * const s, const memory_size_type n) {
+			std::copy(p, p + n, s);
+			p += n;
+		}
+	};
+
+public:
+
+	serialization_predicate_wrapper(pred_t pred) : m_pred(pred) {}
+
+	bool operator()(const char * a, const char * b) const {
+		first_argument_type v1;
+		second_argument_type v2;
+		{
+			unserializer u1(a);
+			unserialize(u1, v1);
+		}
+		{
+			unserializer u2(b);
+			unserialize(u2, v2);
+		}
+		return m_pred(v1, v2);
+	}
+};
+
 template <typename T, typename pred_t>
 class serialization_internal_sort {
-	tpie::array<char> m_buffer;
+	array<char> m_buffer;
 	memory_size_type m_index;
 
-	tpie::array<char *> m_indexes;
+	array<char *> m_indexes;
 	memory_size_type m_expectedItems;
 	memory_size_type m_items;
 
@@ -49,34 +87,6 @@ class serialization_internal_sort {
 	pred_t m_pred;
 
 	bool m_full;
-
-	struct predwrap {
-		pred_t m_pred;
-		predwrap(pred_t pred) : m_pred(pred) {}
-
-		struct unserializer {
-			const char * p;
-			unserializer(const char * p) : p(p) {}
-			void read(char * const s, const memory_size_type n) {
-				std::copy(p, p + n, s);
-				p += n;
-			}
-		};
-
-		bool operator()(const char * a, const char * b) const {
-			T v1;
-			T v2;
-			{
-				unserializer u1(a);
-				tpie::unserialize(u1, v1);
-			}
-			{
-				unserializer u2(b);
-				tpie::unserialize(u2, v2);
-			}
-			return m_pred(v1, v2);
-		}
-	};
 
 public:
 	serialization_internal_sort(pred_t pred = pred_t())
@@ -105,21 +115,30 @@ public:
 	///////////////////////////////////////////////////////////////////////////
 	/// \brief True if all items up to and including this one fits in buffer.
 	///
-	/// Once serialize() returns false, it will keep returning false until
+	/// Once push() returns false, it will keep returning false until
 	/// the sequence is sorted, read out, and the buffer has been cleared.
 	///////////////////////////////////////////////////////////////////////////
-	bool serialize(const T & item) {
-		if (m_items == 0) {
-			m_indexes.resize(16);
+	bool push(const T & item) {
+		if (m_indexes.size() == 0)
+			m_indexes.resize(m_expectedItems > 0 ? m_expectedItems : 16);
+
+		if (m_items == 0)
 			m_index = 0;
-		} else if (m_items == m_indexes.size()) {
+
+		if (m_index >= m_buffer.size()) {
+			m_full = true;
+			return false;
+		}
+
+		if (m_items == m_indexes.size()) {
+			log_warning() << "Expected " << m_indexes.size() << ' ' << m_expectedItems << " items, but got more" << std::endl;
 			memory_size_type newSize = 2*m_indexes.size();
-			tpie::array<char *> indexes(newSize);
+			array<char *> indexes(newSize);
 			std::copy(m_indexes.begin(), m_indexes.end(), indexes.begin());
 			m_indexes.swap(indexes);
 		}
 		memory_size_type oldIndex = m_index;
-		tpie::serialize(*this, item);
+		serialize(*this, item);
 		if (!m_full) {
 			m_indexes[m_items++] = &m_buffer[oldIndex];
 			m_largestItem = std::max(m_largestItem, m_index - oldIndex);
@@ -141,14 +160,14 @@ public:
 	}
 
 	void sort() {
-		predwrap pred(m_pred);
-		std::sort(&m_indexes[0], &m_indexes[m_items], pred);
+		serialization_predicate_wrapper<pred_t> pred(m_pred);
+		std::sort(m_indexes.get(), m_indexes.get() + m_items, pred);
 		m_itemsRead = 0;
 	}
 
-	void unserialize(T & item) {
+	void pull(T & item) {
 		idx = m_indexes[m_itemsRead++];
-		tpie::unserialize(*this, item);
+		unserialize(*this, item);
 	}
 
 	void read(char * const s, const memory_size_type n) {
@@ -173,7 +192,6 @@ public:
 	/// buffer size.
 	///////////////////////////////////////////////////////////////////////////
 	void reset() {
-		m_indexes.resize(0);
 		m_index = m_items = m_itemsRead = 0;
 		m_full = false;
 	}
@@ -227,6 +245,14 @@ public:
 	}
 
 	void calc_sorter_params(memory_size_type memAvail) {
+		if (memAvail <= serialization_writer::memory_usage()) {
+			log_error() << "Not enough memory for run formation; have " << memAvail
+				<< " bytes but " << serialization_writer::memory_usage()
+				<< " is required for writing a run." << std::endl;
+			throw exception("Not enough memory for run formation");
+		}
+		memAvail -= serialization_writer::memory_usage();
+
 		memory_size_type itsz = m_minimumItemSize;
 		memory_size_type lo = 0;
 		memory_size_type hi = 1;
@@ -262,10 +288,10 @@ public:
 	}
 
 	void push(const T & item) {
-		if (m_sorter.serialize(item)) return;
+		if (m_sorter.push(item)) return;
 		end_run();
-		if (!m_sorter.serialize(item)) {
-			throw tpie::exception("Couldn't fit a single item in buffer");
+		if (!m_sorter.push(item)) {
+			throw exception("Couldn't fit a single item in buffer");
 		}
 	}
 
@@ -284,7 +310,7 @@ public:
 				<< "mem avail = " << m_memAvail
 				<< ", writer usage = " << serialization_writer::memory_usage()
 				<< std::endl;
-			throw tpie::exception("Not enough memory for merging.");
+			throw exception("Not enough memory for merging.");
 		}
 		memory_size_type perFanout = largestItem + serialization_reader::memory_usage();
 		memory_size_type fanoutMemory = m_memAvail - serialization_writer::memory_usage();
@@ -295,7 +321,7 @@ public:
 				<< ", fanout memory = " << fanoutMemory
 				<< ", per fanout = " << perFanout
 				<< std::endl;
-			throw tpie::exception("Not enough memory for merging.");
+			throw exception("Not enough memory for merging.");
 		}
 		while (m_sortedRunsCount > 1) {
 			memory_size_type newCount = 0;
@@ -325,7 +351,7 @@ private:
 		ser.open(sorted_run_path(m_sortedRunsCount++));
 		T item;
 		while (m_sorter.can_read()) {
-			m_sorter.unserialize(item);
+			m_sorter.pull(item);
 			ser.serialize(item);
 		}
 		ser.close();
