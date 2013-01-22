@@ -32,56 +32,14 @@
 
 namespace tpie {
 
-template <typename pred_t>
-class serialization_predicate_wrapper {
-public:
-	typedef bool result_type;
-	typedef typename pred_t::first_argument_type first_argument_type;
-	typedef typename pred_t::second_argument_type second_argument_type;
-
-private:
-	pred_t m_pred;
-
-	struct unserializer {
-		const char * p;
-		unserializer(const char * p) : p(p) {}
-		void read(char * const s, const memory_size_type n) {
-			std::copy(p, p + n, s);
-			p += n;
-		}
-	};
-
-public:
-
-	serialization_predicate_wrapper(pred_t pred) : m_pred(pred) {}
-
-	bool operator()(const char * a, const char * b) const {
-		first_argument_type v1;
-		second_argument_type v2;
-		{
-			unserializer u1(a);
-			unserialize(u1, v1);
-		}
-		{
-			unserializer u2(b);
-			unserialize(u2, v2);
-		}
-		return m_pred(v1, v2);
-	}
-};
-
 template <typename T, typename pred_t>
 class serialization_internal_sort {
-	array<char> m_buffer;
-	memory_size_type m_index;
-
-	array<char *> m_indexes;
-	memory_size_type m_expectedItems;
+	array<T> m_buffer;
 	memory_size_type m_items;
+	memory_size_type m_serializedSize;
+	memory_size_type m_memAvail;
 
-	const char * idx;
 	memory_size_type m_itemsRead;
-
 	memory_size_type m_largestItem;
 
 	pred_t m_pred;
@@ -90,26 +48,20 @@ class serialization_internal_sort {
 
 public:
 	serialization_internal_sort(pred_t pred = pred_t())
-		: m_index(0)
-		, m_expectedItems(0)
-		, m_items(0)
+		: m_items(0)
+		, m_serializedSize(0)
+		, m_itemsRead(0)
 		, m_largestItem(0)
 		, m_pred(pred)
 		, m_full(false)
 	{
 	}
 
-	static memory_size_type memory_usage(memory_size_type buffer,
-										 memory_size_type nItems) {
-		return array<char>::memory_usage(buffer) + array<char *>::memory_usage(nItems);
-	}
-
-	void begin(memory_size_type buffer, memory_size_type nItems) {
-		m_indexes.resize(nItems);
-		m_expectedItems = nItems;
-		m_buffer.resize(buffer);
-		m_items = m_largestItem = m_index = 0;
+	void begin(memory_size_type memAvail) {
+		m_buffer.resize(memAvail / sizeof(T) / 2);
+		m_items = m_serializedSize = m_itemsRead = m_largestItem = 0;
 		m_full = false;
+		m_memAvail = memAvail;
 	}
 
 	///////////////////////////////////////////////////////////////////////////
@@ -119,60 +71,39 @@ public:
 	/// the sequence is sorted, read out, and the buffer has been cleared.
 	///////////////////////////////////////////////////////////////////////////
 	bool push(const T & item) {
-		if (m_indexes.size() == 0)
-			m_indexes.resize(m_expectedItems > 0 ? m_expectedItems : 16);
+		if (m_full) return false;
 
-		if (m_items == 0)
-			m_index = 0;
-
-		if (m_index >= m_buffer.size()) {
+		if (m_items == m_buffer.size()) {
 			m_full = true;
 			return false;
 		}
 
-		if (m_items == m_indexes.size()) {
-			log_warning() << "Expected " << m_indexes.size() << ' ' << m_expectedItems << " items, but got more" << std::endl;
-			memory_size_type newSize = 2*m_indexes.size();
-			array<char *> indexes(newSize);
-			std::copy(m_indexes.begin(), m_indexes.end(), indexes.begin());
-			m_indexes.swap(indexes);
+		memory_size_type serSize = std::max(sizeof(T), serialized_size(item));
+
+		if (m_serializedSize + serSize > m_memAvail) {
+			m_full = true;
+			return false;
 		}
-		memory_size_type oldIndex = m_index;
-		serialize(*this, item);
-		if (!m_full) {
-			m_indexes[m_items++] = &m_buffer[oldIndex];
-			m_largestItem = std::max(m_largestItem, m_index - oldIndex);
-		}
-		return !m_full;
+
+		m_buffer[m_items++] = item;
+
+		if (serSize > m_largestItem)
+			m_largestItem = serSize;
+
+		return true;
 	}
 
 	memory_size_type get_largest_item_size() {
 		return m_largestItem;
 	}
 
-	void write(const char * const s, const memory_size_type n) {
-		if (m_full || m_index + n > m_buffer.size()) {
-			m_full = true;
-			return;
-		}
-		std::copy(s, s+n, &m_buffer[m_index]);
-		m_index += n;
-	}
-
 	void sort() {
-		serialization_predicate_wrapper<pred_t> pred(m_pred);
-		std::sort(m_indexes.get(), m_indexes.get() + m_items, pred);
+		std::sort(m_buffer.get(), m_buffer.get() + m_items, m_pred);
 		m_itemsRead = 0;
 	}
 
 	void pull(T & item) {
-		idx = m_indexes[m_itemsRead++];
-		unserialize(*this, item);
-	}
-
-	void read(char * const s, const memory_size_type n) {
-		std::copy(idx, idx + n, s);
-		idx += n;
+		item = m_buffer[m_itemsRead++];
 	}
 
 	bool can_read() {
@@ -192,7 +123,7 @@ public:
 	/// buffer size.
 	///////////////////////////////////////////////////////////////////////////
 	void reset() {
-		m_index = m_items = m_itemsRead = 0;
+		m_items = m_serializedSize = m_itemsRead = 0;
 		m_full = false;
 	}
 };
@@ -253,28 +184,7 @@ public:
 		}
 		memAvail -= serialization_writer::memory_usage();
 
-		memory_size_type itsz = m_minimumItemSize;
-		memory_size_type lo = 0;
-		memory_size_type hi = 1;
-		while (m_sorter.memory_usage(hi, (hi + (itsz - 1)) / itsz) <= memAvail) {
-			lo = hi;
-			hi = lo * 2;
-		}
-		while (lo < hi - 1) {
-			memory_size_type mid = lo + (hi - lo) / 2;
-			if (m_sorter.memory_usage(mid, (mid + (itsz - 1)) / itsz) <= memAvail)
-				lo = mid;
-			else
-				hi = mid;
-		}
-		m_runSize = (lo + (itsz - 1)) / itsz;
-
-		log_info() << "Item buffer = " << lo << ", item size = " << itsz
-			<< ", expected no. items = " << m_runSize
-			<< ", memory usage = " << m_sorter.memory_usage(lo, m_runSize)
-			<< " <= " << memAvail << std::endl;
-
-		m_sorter.begin(lo, m_runSize);
+		m_sorter.begin(memAvail);
 	}
 
 	void begin() {
