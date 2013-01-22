@@ -45,7 +45,7 @@ class serialization_internal_sort {
 
 	pred_t m_pred;
 
-	bool full;
+	bool m_full;
 
 	struct predwrap {
 		pred_t m_pred;
@@ -82,7 +82,7 @@ public:
 		, m_items(0)
 		, m_largestItem(0)
 		, m_pred(pred)
-		, full(false)
+		, m_full(false)
 	{
 	}
 
@@ -104,11 +104,11 @@ public:
 		}
 		memory_size_type oldIndex = m_index;
 		tpie::serialize(*this, item);
-		if (!full) {
+		if (!m_full) {
 			m_indexes[m_items++] = &m_buffer[oldIndex];
 			m_largestItem = std::max(m_largestItem, m_index - oldIndex);
 		}
-		return !full;
+		return !m_full;
 	}
 
 	memory_size_type get_largest_item_size() {
@@ -116,8 +116,8 @@ public:
 	}
 
 	void write(const char * const s, const memory_size_type n) {
-		if (full || m_index + n > m_buffer.size()) {
-			full = true;
+		if (m_full || m_index + n > m_buffer.size()) {
+			m_full = true;
 			return;
 		}
 		std::copy(s, s+n, &m_buffer[m_index]);
@@ -151,13 +151,13 @@ public:
 		m_buffer.resize(sz);
 		m_indexes.resize(0);
 		m_index = m_items = m_itemsRead = m_largestItem = 0;
-		full = false;
+		m_full = false;
 	}
 
 	void reset() {
 		m_indexes.resize(0);
 		m_index = m_items = m_itemsRead = 0;
-		full = false;
+		m_full = false;
 	}
 };
 
