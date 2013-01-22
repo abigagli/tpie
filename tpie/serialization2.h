@@ -159,7 +159,7 @@ struct array_decode_magic<D, T, true, true, false> {
 struct counter {
 	size_t size;
 	counter(): size(0) {}
-	void write(void *, size_t s) {size += s;}
+	void write(const void *, size_t s) {size += s;}
 };
 
 } // namespace bits
