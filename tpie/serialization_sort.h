@@ -20,10 +20,12 @@
 #define __TPIE_SERIALIZATION_SORT_H__
 
 #include <queue>
+#include <boost/filesystem.hpp>
 
 #include <tpie/array.h>
 #include <tpie/tempname.h>
 #include <tpie/tpie_log.h>
+#include <tpie/stats.h>
 
 #include <tpie/serialization2.h>
 #include <tpie/serialization_stream.h>
@@ -36,6 +38,7 @@ class serialization_internal_sort {
 	memory_size_type m_index;
 
 	tpie::array<char *> m_indexes;
+	memory_size_type m_expectedItems;
 	memory_size_type m_items;
 
 	const char * idx;
@@ -76,14 +79,27 @@ class serialization_internal_sort {
 	};
 
 public:
-	serialization_internal_sort(memory_size_type buffer, pred_t pred = pred_t())
-		: m_buffer(buffer)
-		, m_index(0)
+	serialization_internal_sort(pred_t pred = pred_t())
+		: m_index(0)
+		, m_expectedItems(0)
 		, m_items(0)
 		, m_largestItem(0)
 		, m_pred(pred)
 		, m_full(false)
 	{
+	}
+
+	static memory_size_type memory_usage(memory_size_type buffer,
+										 memory_size_type nItems) {
+		return array<char>::memory_usage(buffer) + array<char *>::memory_usage(nItems);
+	}
+
+	void begin(memory_size_type buffer, memory_size_type nItems) {
+		m_indexes.resize(nItems);
+		m_expectedItems = nItems;
+		m_buffer.resize(buffer);
+		m_items = m_largestItem = m_index = 0;
+		m_full = false;
 	}
 
 	///////////////////////////////////////////////////////////////////////////
@@ -145,13 +161,11 @@ public:
 	}
 
 	///////////////////////////////////////////////////////////////////////////
-	/// \brief Reset sorter and set buffer size to sz.
+	/// \brief Deallocate buffer and call reset().
 	///////////////////////////////////////////////////////////////////////////
-	void resize(memory_size_type sz) {
-		m_buffer.resize(sz);
-		m_indexes.resize(0);
-		m_index = m_items = m_itemsRead = m_largestItem = 0;
-		m_full = false;
+	void end() {
+		m_buffer.resize(0);
+		reset();
 	}
 
 	///////////////////////////////////////////////////////////////////////////
@@ -168,22 +182,83 @@ public:
 template <typename T, typename pred_t>
 class serialization_sort {
 	serialization_internal_sort<T, pred_t> m_sorter;
-	array<temp_file> m_sortedRuns;
-	memory_size_type m_bufferSize;
+	memory_size_type m_sortedRunsCount;
+	memory_size_type m_sortedRunsOffset;
+	memory_size_type m_memAvail;
+	memory_size_type m_runSize;
+	memory_size_type m_minimumItemSize;
 	serialization_reader m_reader;
 	bool m_open;
 	pred_t m_pred;
 
+	memory_size_type m_firstFileUsed;
+	memory_size_type m_lastFileUsed;
+
+	std::string m_tempDir;
+
 public:
-	serialization_sort(memory_size_type bufferSize, pred_t pred = pred_t())
-		: m_sorter(bufferSize, pred)
-		, m_bufferSize(bufferSize)
+	serialization_sort(memory_size_type memAvail, memory_size_type minimumItemSize = sizeof(T), pred_t pred = pred_t())
+		: m_sorter(pred)
+		, m_sortedRunsCount(0)
+		, m_sortedRunsOffset(0)
+		, m_memAvail(memAvail)
+		, m_minimumItemSize(minimumItemSize)
 		, m_open(false)
 		, m_pred(pred)
+		, m_firstFileUsed(0)
+		, m_lastFileUsed(0)
 	{
 	}
 
+	~serialization_sort() {
+		m_sortedRunsOffset = 0;
+		log_info() << "Remove " << m_firstFileUsed << " through " << m_lastFileUsed << std::endl;
+		for (memory_size_type i = m_firstFileUsed; i <= m_lastFileUsed; ++i) {
+			std::string path = sorted_run_path(i);
+			if (!boost::filesystem::exists(path)) continue;
+
+			serialization_reader rd;
+			rd.open(path);
+			log_info() << "- " << i << ' ' << rd.file_size() << std::endl;
+			increment_temp_file_usage(-static_cast<stream_offset_type>(rd.file_size()));
+			rd.close();
+			boost::filesystem::remove(path);
+		}
+	}
+
+	void calc_sorter_params(memory_size_type memAvail) {
+		memory_size_type itsz = m_minimumItemSize;
+		memory_size_type lo = 0;
+		memory_size_type hi = 1;
+		while (m_sorter.memory_usage(hi, (hi + (itsz - 1)) / itsz) <= memAvail) {
+			lo = hi;
+			hi = lo * 2;
+		}
+		while (lo < hi - 1) {
+			memory_size_type mid = lo + (hi - lo) / 2;
+			if (m_sorter.memory_usage(mid, (mid + (itsz - 1)) / itsz) <= memAvail)
+				lo = mid;
+			else
+				hi = mid;
+		}
+		m_runSize = (lo + (itsz - 1)) / itsz;
+
+		log_info() << "Item buffer = " << lo << ", item size = " << itsz
+			<< ", expected no. items = " << m_runSize
+			<< ", memory usage = " << m_sorter.memory_usage(lo, m_runSize)
+			<< " <= " << memAvail << std::endl;
+
+		m_sorter.begin(lo, m_runSize);
+	}
+
 	void begin() {
+		log_info() << "Before begin; mem usage = "
+			<< get_memory_manager().used() << std::endl;
+		calc_sorter_params(m_memAvail);
+		log_info() << "After internal sorter begin; mem usage = "
+			<< get_memory_manager().used() << std::endl;
+		m_tempDir = tempname::tpie_dir_name();
+		boost::filesystem::create_directory(m_tempDir);
 	}
 
 	void push(const T & item) {
@@ -196,47 +271,66 @@ public:
 
 	void end() {
 		end_run();
+		m_sorter.end();
+		log_info() << "After internal sorter end; mem usage = "
+			<< get_memory_manager().used() << std::endl;
 		memory_size_type largestItem = m_sorter.get_largest_item_size();
-		m_sorter.resize(0);
 		if (largestItem == 0) {
 			log_warning() << "Largest item is 0 bytes; doing nothing." << std::endl;
 			return;
 		}
-		memory_size_type fanout = m_bufferSize / largestItem;
-		while (m_sortedRuns.size() > 1) {
-			array<temp_file> sortedRuns((m_sortedRuns.size() + (fanout-1)) / fanout);
-			size_t j = 0;
-			for (size_t i = 0; i < m_sortedRuns.size(); i += fanout, ++j) {
-				size_t till = std::min(m_sortedRuns.size(), i + fanout);
-				merge_runs(m_sortedRuns.get()+i, m_sortedRuns.get()+till, sortedRuns.get()+j);
+		if (m_memAvail <= serialization_writer::memory_usage()) {
+			log_error() << "Not enough memory for merging. "
+				<< "mem avail = " << m_memAvail
+				<< ", writer usage = " << serialization_writer::memory_usage()
+				<< std::endl;
+			throw tpie::exception("Not enough memory for merging.");
+		}
+		memory_size_type perFanout = largestItem + serialization_reader::memory_usage();
+		memory_size_type fanoutMemory = m_memAvail - serialization_writer::memory_usage();
+		memory_size_type fanout = fanoutMemory / perFanout;
+		if (fanout < 2) {
+			log_error() << "Not enough memory for merging. "
+				<< "mem avail = " << m_memAvail
+				<< ", fanout memory = " << fanoutMemory
+				<< ", per fanout = " << perFanout
+				<< std::endl;
+			throw tpie::exception("Not enough memory for merging.");
+		}
+		while (m_sortedRunsCount > 1) {
+			memory_size_type newCount = 0;
+			for (size_t i = 0; i < m_sortedRunsCount; i += fanout, ++newCount) {
+				size_t till = std::min(m_sortedRunsCount, i + fanout);
+				merge_runs(i, till, m_sortedRunsCount + newCount);
 			}
-			m_sortedRuns.swap(sortedRuns);
+			log_info() << "Advance offset by " << m_sortedRunsCount << std::endl;
+			m_sortedRunsOffset += m_sortedRunsCount;
+			m_sortedRunsCount = newCount;
 		}
 	}
 
 private:
-	void expand_temp_files() {
-		array<temp_file> sortedRuns(m_sortedRuns.size()+1);
-		for (size_t i = 0; i < m_sortedRuns.size(); ++i) {
-			sortedRuns[i].set_path(m_sortedRuns[i].path());
-			m_sortedRuns[i].set_persistent(true);
-		}
-		m_sortedRuns.swap(sortedRuns);
+	std::string sorted_run_path(memory_size_type idx) {
+		std::stringstream ss;
+		ss << m_tempDir << '/' << (m_sortedRunsOffset + idx) << ".tpie";
+		return ss.str();
 	}
 
 	void end_run() {
 		m_sorter.sort();
 		if (!m_sorter.can_read()) return;
-		expand_temp_files();
-		temp_file & f = m_sortedRuns[m_sortedRuns.size()-1];
+		log_info() << "Write run " << m_sortedRunsCount << std::endl;
 		serialization_writer ser;
-		ser.open(f.path());
+		m_lastFileUsed = std::max(m_lastFileUsed, m_sortedRunsCount + m_sortedRunsOffset);
+		ser.open(sorted_run_path(m_sortedRunsCount++));
 		T item;
 		while (m_sorter.can_read()) {
 			m_sorter.unserialize(item);
 			ser.serialize(item);
 		}
 		ser.close();
+		log_info() << "+ " << (m_sortedRunsCount-1 + m_sortedRunsOffset) << ' ' << ser.file_size() << std::endl;
+		increment_temp_file_usage(static_cast<stream_offset_type>(ser.file_size()));
 		m_sorter.reset();
 	}
 
@@ -254,14 +348,17 @@ private:
 		}
 	};
 
-	void merge_runs(temp_file * const a, temp_file * const b, temp_file * const dst) {
+	void merge_runs(memory_size_type a, memory_size_type b, memory_size_type dst) {
+		log_info() << "Merge runs [" << a << ", " << b << ") into " << dst << std::endl;
 		serialization_writer wr;
-		wr.open(dst->path());
+		wr.open(sorted_run_path(dst));
+		m_lastFileUsed = std::max(m_lastFileUsed, m_sortedRunsOffset + dst);
 		std::vector<serialization_reader> rd(b-a);
 		mergepred p(m_pred);
 		std::priority_queue<typename mergepred::item_type, std::vector<typename mergepred::item_type>, mergepred> pq(p);
-		for (size_t i = 0; i < b-a; ++i) {
-			rd[i].open((a+i)->path());
+		size_t i = 0;
+		for (memory_size_type p = a; p != b; ++p, ++i) {
+			rd[i].open(sorted_run_path(p));
 			if (rd[i].can_read()) {
 				T item;
 				rd[i].unserialize(item);
@@ -278,17 +375,24 @@ private:
 				pq.push(std::make_pair(item, i));
 			}
 		}
-		for (size_t i = 0; i < b-a; ++i) {
+		i = 0;
+		for (memory_size_type p = a; p != b; ++p, ++i) {
+			increment_temp_file_usage(-static_cast<stream_offset_type>(rd[i].file_size()));
+			log_info() << "- " << (p+m_sortedRunsOffset) << ' ' << rd[i].file_size() << std::endl;
 			rd[i].close();
+			boost::filesystem::remove(sorted_run_path(p));
 		}
+		if (m_firstFileUsed == m_sortedRunsOffset + a) m_firstFileUsed = m_sortedRunsOffset + b;
 		wr.close();
+		log_info() << "+ " << (dst+m_sortedRunsOffset) << ' ' << wr.file_size() << std::endl;
+		increment_temp_file_usage(static_cast<stream_offset_type>(wr.file_size()));
 	}
 
 public:
 	T pull() {
 		T item;
 		if (!m_open) {
-			m_reader.open(m_sortedRuns[0].path());
+			m_reader.open(sorted_run_path(0));
 			m_open = true;
 		}
 		m_reader.unserialize(item);
