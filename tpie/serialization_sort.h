@@ -154,6 +154,10 @@ public:
 		m_full = false;
 	}
 
+	///////////////////////////////////////////////////////////////////////////
+	/// \brief Reset sorter, but keep the remembered largest item size and
+	/// buffer size.
+	///////////////////////////////////////////////////////////////////////////
 	void reset() {
 		m_indexes.resize(0);
 		m_index = m_items = m_itemsRead = 0;
