@@ -52,7 +52,7 @@ public:
 		: m_items(0)
 		, m_serializedSize(0)
 		, m_itemsRead(0)
-		, m_largestItem(0)
+		, m_largestItem(sizeof(T))
 		, m_pred(pred)
 		, m_full(false)
 	{
@@ -60,7 +60,8 @@ public:
 
 	void begin(memory_size_type memAvail) {
 		m_buffer.resize(memAvail / sizeof(T) / 2);
-		m_items = m_serializedSize = m_itemsRead = m_largestItem = 0;
+		m_items = m_serializedSize = m_itemsRead = 0;
+		m_largestItem = sizeof(T);
 		m_full = false;
 		m_memAvail = memAvail;
 	}
@@ -79,23 +80,25 @@ public:
 			return false;
 		}
 
-		memory_size_type serSize = std::max(sizeof(T), serialized_size(item));
+		memory_size_type serSize = serialized_size(item);
 
-		// amount of memory this item needs for its extra stuff (stuff not in the buffer).
-		memory_size_type serializedExtra = serSize - sizeof(T);
+		if (serSize > sizeof(T)) {
+			// amount of memory this item needs for its extra stuff (stuff not in the buffer).
+			memory_size_type serializedExtra = serSize - sizeof(T);
 
-		// amount of memory not used for the buffer and not used for extra stuff already.
-		memory_size_type memRemainingExtra = m_memAvail - (m_buffer.size() * sizeof(T) + (m_serializedSize - m_items * sizeof(T)));
+			// amount of memory not used for the buffer and not used for extra stuff already.
+			memory_size_type memRemainingExtra = m_memAvail - (m_buffer.size() * sizeof(T) + (m_serializedSize - m_items * sizeof(T)));
 
-		if (serializedExtra > memRemainingExtra) {
-			m_full = true;
-			return false;
+			if (serializedExtra > memRemainingExtra) {
+				m_full = true;
+				return false;
+			}
+
+			if (serSize > m_largestItem)
+				m_largestItem = serSize;
 		}
 
 		m_buffer[m_items++] = item;
-
-		if (serSize > m_largestItem)
-			m_largestItem = serSize;
 
 		return true;
 	}
