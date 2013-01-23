@@ -27,7 +27,7 @@ class fractile_serialization {
 
 public:
 	fractile_serialization()
-		: sorter(tpie::get_memory_manager().available())
+		: sorter(tpie::get_memory_manager().available() - tpie::serialization_reader::memory_usage())
 	{
 	}
 
