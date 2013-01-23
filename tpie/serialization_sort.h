@@ -80,7 +80,13 @@ public:
 
 		memory_size_type serSize = std::max(sizeof(T), serialized_size(item));
 
-		if (m_serializedSize + serSize > m_memAvail) {
+		// amount of memory this item needs for its extra stuff (stuff not in the buffer).
+		memory_size_type serializedExtra = serSize - sizeof(T);
+
+		// amount of memory not used for the buffer and not used for extra stuff already.
+		memory_size_type memRemainingExtra = m_memAvail - (m_buffer.size() * sizeof(T) + (m_serializedSize - m_items * sizeof(T)));
+
+		if (serializedExtra > memRemainingExtra) {
 			m_full = true;
 			return false;
 		}
