@@ -26,6 +26,7 @@
 #include <tpie/tempname.h>
 #include <tpie/tpie_log.h>
 #include <tpie/stats.h>
+#include <tpie/parallel_sort.h>
 
 #include <tpie/serialization2.h>
 #include <tpie/serialization_stream.h>
@@ -104,7 +105,7 @@ public:
 	}
 
 	void sort() {
-		std::sort(m_buffer.get(), m_buffer.get() + m_items, m_pred);
+		parallel_sort(m_buffer.get(), m_buffer.get() + m_items, m_pred);
 		m_itemsRead = 0;
 	}
 
