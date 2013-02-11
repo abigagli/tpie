@@ -8,7 +8,7 @@ set (HEADERS
 		backtrace.h
 		cache_hint.h
 		comparator.h
-		config.h.cmake
+#		config.h.cmake
 		cpu_timer.h
 		deprecated.h
 		disjoint_sets.h
@@ -119,8 +119,23 @@ else(WIN32)
 set (HEADERS ${HEADERS} file_accessor/posix.h file_accessor/posix.inl)
 endif(WIN32)
 
-add_library(tpie ${HEADERS} ${SOURCES})
-target_link_libraries(tpie ${Boost_LIBRARIES} pipelining)
+add_library(tpie_o OBJECT ${HEADERS} ${SOURCES})
+set(TPIE_OBJECTS $<TARGET_OBJECTS:tpie_o> $<TARGET_OBJECTS:pipelining_o>)
+set(TPIE_LINK ${Boost_LIBRARIES})
+set_target_properties(tpie_o PROPERTIES FOLDER tpie)
+set_target_properties(pipelining_o PROPERTIES FOLDER tpie)
+
+if(TPIE_SHARED)
+  set_target_properties(tpie_o PROPERTIES COMPILE_FLAGS "-fPIC -fvisibility=hidden")
+  set_target_properties(tpie_o PROPERTIES LINK_FLAGS "-fPIC -fvisibility=hidden")
+  set_target_properties(pipelining_o PROPERTIES COMPILE_FLAGS "-fPIC -fvisibility=hidden")
+  set_target_properties(pipelining_o PROPERTIES LINK_FLAGS "-fPIC -fvisibility=hidden")
+  add_library(tpie SHARED ${TPIE_OBJECTS})
+else(TPIE_SHARED)
+  add_library(tpie STATIC ${TPIE_OBJECTS})
+endif(TPIE_SHARED)
+
+target_link_libraries(tpie ${TPIE_LINK})
 set_target_properties(tpie PROPERTIES FOLDER tpie)
 
 install(TARGETS tpie

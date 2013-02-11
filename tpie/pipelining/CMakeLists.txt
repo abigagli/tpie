@@ -30,6 +30,6 @@ set (PIPE_SOURCES
 	tokens.cpp
 	)
 
-add_library(pipelining ${PIPE_HEADERS} ${PIPE_SOURCES})
-target_link_libraries(pipelining ${Boost_LIBRARIES})
-set_target_properties(pipelining PROPERTIES FOLDER tpie)
+add_library(pipelining_o OBJECT ${PIPE_HEADERS} ${PIPE_SOURCES})
+set_target_properties(pipelining_o PROPERTIES FOLDER tpie)
+set_target_properties(pipelining_o PROPERTIES COMPILE_FLAGS -fPIC)
