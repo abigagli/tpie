@@ -154,7 +154,7 @@ bool stream_test() {
 	bool result = true;
 
 	memory_size_type N = 2000;
-	array<memory_size_type> numbers(N);
+	tpie::array<memory_size_type> numbers(N);
 	for (memory_size_type i = 0; i < N; ++i) {
 		numbers[i] = i;
 	}
@@ -213,7 +213,7 @@ bool stream_reverse_test() {
 	bool result = true;
 
 	memory_size_type N = 2000;
-	array<memory_size_type> numbers(N);
+	tpie::array<memory_size_type> numbers(N);
 	for (memory_size_type i = 0; i < N; ++i) {
 		numbers[i] = i;
 	}
