@@ -1,6 +1,8 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
+#include <boost/version.hpp>
+
 #cmakedefine TPIE_HAVE_UNISTD_H
 #cmakedefine TPIE_HAVE_SYS_UNISTD_H
 
@@ -20,7 +22,6 @@
 #endif
 
 #cmakedefine TPL_LOGGING 1
-#cmakedefine TPIE_THREADSAFE_MEMORY_MANAGEMNT 1
 
 #cmakedefine TPIE_NDEBUG
 
@@ -54,8 +55,13 @@
 	#pragma warning(disable : 4800)
 #endif
 	
-//eases transition from filesystem2 to filesystem3
-#define BOOST_FILESYSTEM_VERSION ${BOOST_FILESYSTEM_VERSION}
+//We use boost filesystem v3 from boost v1.47 and onwards
+//(boost v 1.50 dropped fs v2 altogether)
+#if BOOST_VERSION >= 104700
+	#define BOOST_FILESYSTEM_VERSION 3
+#else
+	#define BOOST_FILESYSTEM_VERSION 2
+#endif
 
 #ifdef _WIN32
 #ifndef NOMINMAX
