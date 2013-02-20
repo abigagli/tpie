@@ -23,12 +23,13 @@
 #include <tpie/serialization_sort.h>
 
 int main() {
-	tpie::tpie_init(tpie::ALL & ~tpie::JOB_MANAGER);
-	const tpie::memory_size_type memory = 10*1024*1024;
+	tpie::tpie_init();
+	const tpie::memory_size_type memory = 100*1024*1024;
 	tpie::get_memory_manager().set_limit(memory);
 	{
-	tpie::serialization_sort<std::string, std::less<std::string> >
-		sorter(memory - tpie::get_memory_manager().used());
+	tpie::serialization_sort<std::string, std::less<std::string> > sorter;
+	sorter.set_available_memory(memory - tpie::get_memory_manager().used());
+
 	std::string line;
 	sorter.begin();
 	while (std::getline(std::cin, line)) {
@@ -37,12 +38,14 @@ int main() {
 	tpie::log_info() << "Temp file usage: " << tpie::get_temp_file_usage() << std::endl;
 	sorter.end();
 	tpie::log_info() << "Temp file usage: " << tpie::get_temp_file_usage() << std::endl;
+	sorter.merge_runs();
+	tpie::log_info() << "Temp file usage: " << tpie::get_temp_file_usage() << std::endl;
 	while (sorter.can_pull()) {
 		std::cout << sorter.pull() << '\n';
 	}
 	tpie::log_info() << "Temp file usage: " << tpie::get_temp_file_usage() << std::endl;
 	}
 	tpie::log_info() << "Temp file usage: " << tpie::get_temp_file_usage() << std::endl;
-	tpie::tpie_finish(tpie::ALL & ~tpie::JOB_MANAGER);
+	tpie::tpie_finish();
 	return 0;
 }

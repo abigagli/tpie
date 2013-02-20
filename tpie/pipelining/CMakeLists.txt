@@ -17,6 +17,7 @@ set (PIPE_HEADERS
 	pipeline.h
 	reverse.h
 	sort.h
+	serialization.h
 	std_glue.h
 	stdio.h
 	tokens.h

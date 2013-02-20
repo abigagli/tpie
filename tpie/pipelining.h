@@ -45,6 +45,7 @@
 #include <tpie/pipelining/numeric.h>
 #include <tpie/pipelining/reverse.h>
 #include <tpie/pipelining/sort.h>
+#include <tpie/pipelining/serialization.h>
 #include <tpie/pipelining/std_glue.h>
 #include <tpie/pipelining/stdio.h>
 #include <tpie/pipelining/uniq.h>
