@@ -536,7 +536,7 @@ private:
 		// binary search
 		while (fanout_lo < fanout_hi - 1) {
 			memory_size_type mid = fanout_lo + (fanout_hi-fanout_lo)/2;
-			if (fanout_memory_usage(mid) < availableMemory) {
+			if (fanout_memory_usage(mid) <= availableMemory) {
 				fanout_lo = mid;
 			} else {
 				fanout_hi = mid;
