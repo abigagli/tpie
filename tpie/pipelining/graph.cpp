@@ -217,6 +217,12 @@ void phase::assign_minimum_memory() const {
 	}
 }
 
+void phase::assign_maximum_memory() const {
+	for (size_t i = 0; i < m_nodes.size(); ++i) {
+		m_nodes[i]->set_available_memory(m_nodes[i]->get_maximum_memory());
+	}
+}
+
 void phase::assign_memory(memory_size_type m) const {
 	{
 		dfs_traversal<phase::node_graph> dfs(*itemFlowGraph);
@@ -233,11 +239,17 @@ void phase::assign_memory(memory_size_type m) const {
 		}
 	}
 
+	bool unlimitedMaximumMemory = false;
 	double fraction = 0.0;
 	memory_size_type minimumMemory = 0;
+	memory_size_type maximumMemory = 0;
 	for (size_t i = 0; i < m_nodes.size(); ++i) {
 		fraction += m_nodes[i]->get_memory_fraction();
 		minimumMemory += m_nodes[i]->get_minimum_memory();
+		maximumMemory += m_nodes[i]->get_maximum_memory();
+		if (m_nodes[i]->get_maximum_memory() == 0) {
+			unlimitedMaximumMemory = true;
+		}
 	}
 
 	if (m < minimumMemory) {
@@ -245,6 +257,12 @@ void phase::assign_memory(memory_size_type m) const {
 		assign_minimum_memory();
 		return;
 	}
+
+	if (!unlimitedMaximumMemory && m >= maximumMemory) {
+		assign_maximum_memory();
+		return;
+	}
+
 	memory_size_type remaining = m;
 	if (fraction < 1e-9) {
 		assign_minimum_memory();
@@ -264,6 +282,22 @@ void phase::assign_memory(memory_size_type m) const {
 				s->set_available_memory(min);
 				assigned[i] = true;
 				remaining -= min;
+				fraction -= frac;
+			}
+		}
+		if (!done) continue;
+		for (size_t i = 0; i < m_nodes.size(); ++i) {
+			if (assigned[i]) continue;
+			node * s = m_nodes[i];
+			memory_size_type max = s->get_maximum_memory();
+			if (max == 0) continue;
+			double frac = s->get_memory_fraction();
+			double to_assign = frac/fraction * remaining;
+			if (to_assign > max) {
+				done = false;
+				s->set_available_memory(max);
+				assigned[i] = true;
+				remaining -= max;
 				fraction -= frac;
 			}
 		}

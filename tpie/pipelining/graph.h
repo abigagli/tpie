@@ -89,6 +89,8 @@ private:
 	node * m_initiator;
 
 	void assign_minimum_memory() const;
+
+	void assign_maximum_memory() const;
 };
 
 class graph_traits {
