@@ -523,6 +523,9 @@ void memory_test_multi(teststream & ts) {
 	memory_test_shorthand(ts,  4000,  1000,     0,  1000,     0,   0.0,   0.0);
 	memory_test_shorthand(ts,  2000,     0,     0,     0,     0,   0.0,   1.0);
 	memory_test_shorthand(ts,  2000,   500,     0,     0,     0,   0.0,   1.0);
+	memory_test_shorthand(ts,  2000,   500,   700,     0,     0,   1.0,   1.0);
+	memory_test_shorthand(ts,  2000,     0,   700,     0,   500,   1.0,   1.0);
+	memory_test_shorthand(ts,  2000,     0,  2000,     0,  2000,   1.0,   1.0);
 }
 
 bool fork_test() {
